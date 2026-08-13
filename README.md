@@ -234,10 +234,8 @@ RetroWall is released under the **MIT License** — free to use, modify, and dis
 
 ```
 MIT License — see the LICENSE file for full text.
-Copyright (c) 2026 <your name / handle>
+Copyright (c) 2026 Manan (NOXxM)
 ```
-
-> 📄 Don't forget to add a `LICENSE` file to the repo root with the full MIT text and your name.
 
 ---
 
