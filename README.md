@@ -9,14 +9,14 @@
 *Your desktop, alive — without the bloat, the subscriptions, or the spyware.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg?style=for-the-badge)](LICENSE)
-[![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-ff2d8c.svg?style=for-the-badge)](https://github.com/your-username/RetroWall)
-[![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011%20(64--bit)-0ea5e9.svg?style=for-the-badge&logo=windows)](https://github.com/your-username/RetroWall/releases)
+[![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-ff2d8c.svg?style=for-the-badge)](https://github.com/NOXxM/RetroWall)
+[![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011%20(64--bit)-0ea5e9.svg?style=for-the-badge&logo=windows)](https://github.com/NOXxM/RetroWall/releases)
 
-[![Release](https://img.shields.io/github/v/release/your-username/RetroWall?style=flat-square&color=5ee7ff)](https://github.com/your-username/RetroWall/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/your-username/RetroWall/build.yml?style=flat-square)](https://github.com/your-username/RetroWall/actions)
-[![Downloads](https://img.shields.io/github/downloads/your-username/RetroWall/total?style=flat-square&color=f72c8c)](https://github.com/your-username/RetroWall/releases)
-[![Stars](https://img.shields.io/github/stars/your-username/RetroWall?style=flat-square&color=facc15)](https://github.com/your-username/RetroWall/stargazers)
-[![Issues](https://img.shields.io/github/issues/your-username/RetroWall?style=flat-square)](https://github.com/your-username/RetroWall/issues)
+[![Release](https://img.shields.io/github/v/release/NOXxM/RetroWall?style=flat-square&color=5ee7ff)](https://github.com/NOXxM/RetroWall/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/NOXxM/RetroWall/build.yml?style=flat-square)](https://github.com/NOXxM/RetroWall/actions)
+[![Downloads](https://img.shields.io/github/downloads/NOXxM/RetroWall/total?style=flat-square&color=f72c8c)](https://github.com/NOXxM/RetroWall/releases)
+[![Stars](https://img.shields.io/github/stars/NOXxM/RetroWall?style=flat-square&color=facc15)](https://github.com/NOXxM/RetroWall/stargazers)
+[![Issues](https://img.shields.io/github/issues/NOXxM/RetroWall?style=flat-square)](https://github.com/NOXxM/RetroWall/issues)
 
 [**⬇️ Download**](#-download--quick-setup-60-seconds) · [**✨ Features**](#-why-retrowall) · [**📊 Benchmarks**](#-performance--resource-benchmarks) · [**🛠️ Build**](#️-building-from-source-developers) · [**🗺️ Roadmap**](#️-roadmap)
 
@@ -77,7 +77,7 @@ RetroWall is architected to be **event-driven**: it only spends cycles when the 
 
 ### 1️⃣ Get the installer
 
-1. Go to the [**Releases**](https://github.com/your-username/RetroWall/releases/latest) page.
+1. Go to the [**Releases**](https://github.com/NOXxM/RetroWall/releases/latest) page.
 2. Under **Assets**, download **`RetroWallSetup.exe`**.
 
 ### 2️⃣ Install it (pick any folder)
@@ -145,7 +145,7 @@ RetroWall is a native **C++20 / Win32** app with a tiny footprint and only one v
 **Clone & build**
 
 ```bash
-git clone https://github.com/your-username/RetroWall.git
+git clone https://github.com/NOXxM/RetroWall.git
 cd RetroWall
 cmake -S . -B build
 cmake --build build --config Release
@@ -208,7 +208,7 @@ build\Release\RetroWall.exe path\to\clip.mp4 # start with a clip
 - [ ] 🧪 GitHub Actions CI build + auto-release
 - [ ] ✍️ Code-signed releases (to remove SmartScreen warnings)
 
-Have an idea? [**Open a feature request →**](https://github.com/your-username/RetroWall/issues/new)
+Have an idea? [**Open a feature request →**](https://github.com/NOXxM/RetroWall/issues/new)
 
 ---
 
@@ -216,8 +216,8 @@ Have an idea? [**Open a feature request →**](https://github.com/your-username/
 
 Contributions of all sizes are welcome — from typo fixes to whole features. 💚
 
-- 🐛 **Found a bug?** [Open an issue](https://github.com/your-username/RetroWall/issues/new) with your Windows version, GPU, and steps to reproduce. The engine logs to `%APPDATA%\NativeWallpaperEngine\log.txt` — attaching it helps a ton.
-- 💡 **Have a feature idea?** Start a [Discussion](https://github.com/your-username/RetroWall/discussions) or a feature-request issue.
+- 🐛 **Found a bug?** [Open an issue](https://github.com/NOXxM/RetroWall/issues/new) with your Windows version, GPU, and steps to reproduce. The engine logs to `%APPDATA%\NativeWallpaperEngine\log.txt` — attaching it helps a ton.
+- 💡 **Have a feature idea?** Start a [Discussion](https://github.com/NOXxM/RetroWall/discussions) or a feature-request issue.
 - 🔧 **Want to contribute code?**
   1. **Fork** the repo & create a branch: `git checkout -b feature/amazing-thing`
   2. **Commit** your changes with a clear message
