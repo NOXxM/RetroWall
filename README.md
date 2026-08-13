@@ -36,12 +36,17 @@
 
 <div align="center">
 
-### 🖼️ Preview
+### 🖼️ See it in action
 
-<!-- Replace the line below with a real screenshot or GIF, e.g. docs/preview.gif -->
-> **[ Add a demo GIF or screenshot here → `docs/preview.gif` ]**
->
-> *Tip: a 5–10s screen recording of picking a wallpaper + the retro settings panel converts best.*
+<img src="docs/preview-1.png" alt="RetroWall playing a knight-in-a-flower-field video wallpaper, with the retro Windows-95-style settings panel open on the Library tab" width="920" />
+
+<br><br>
+
+<img src="docs/preview-2.png" alt="RetroWall playing a Frieren star-trails video wallpaper, selecting a clip from the Library" width="920" />
+
+<br>
+
+<sub>Pick any clip from your library and it plays live behind your desktop icons — driven from a nostalgic Win95-style control panel.</sub>
 
 </div>
 
