@@ -938,6 +938,7 @@ void Engine::RenderThreadMain() {
             pp.tintG = config_.TintG();
             pp.tintB = config_.TintB();
             pp.temperature = config_.Temperature();
+            pp.aspectMode = config_.Aspect();  // 0 Fill, 1 Fit, 2 Stretch
             if (config_.MatchSystemTheme()) {
                 if (themeCounter-- <= 0) {
                     themeCounter = 120;  // re-check ~every 2s at 60fps

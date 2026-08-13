@@ -270,6 +270,7 @@ void ConfigManager::RefreshAtomics() {
     aPauseFull_.store(config_.pauseOnFullscreen, std::memory_order_relaxed);
     aPauseFocus_.store(config_.pauseOnFocused, std::memory_order_relaxed);
     aPauseBatt_.store(config_.pauseOnBattery, std::memory_order_relaxed);
+    aAspect_.store(static_cast<int>(config_.aspect), std::memory_order_relaxed);
     aBrightness_.store(config_.brightness, std::memory_order_relaxed);
     aContrast_.store(config_.contrast, std::memory_order_relaxed);
     aSaturation_.store(config_.saturation, std::memory_order_relaxed);

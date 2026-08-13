@@ -32,7 +32,7 @@ VSOut VSMain(uint id : SV_VertexID) {
     return o;
 }
 
-// Live color-grade constants (see VideoRenderer::PostParams).
+// Live color-grade + aspect constants (see VideoRenderer::PostParams).
 cbuffer Post : register(b0) {
     float uBrightness;
     float uContrast;
@@ -41,7 +41,10 @@ cbuffer Post : register(b0) {
     float3 uTint;
     float uTemperature;
     float uBlackout;
-    float3 _pad;
+    float uLetterbox;   // 1 => paint black outside the sampled [0,1] region
+    float2 uUvScale;    // aspect-correction transform for the sample UV
+    float2 uUvOffset;
+    float2 _pad;
 };
 
 float3 ApplyPost(float3 c) {
@@ -59,8 +62,17 @@ float3 ApplyPost(float3 c) {
 
 float4 PSMain(VSOut i) : SV_Target {
     if (uBlackout > 0.5) return float4(0.0, 0.0, 0.0, 1.0);  // privacy blackout
-    float  y    = LumaPlane.Sample(LinearClamp, i.uv).r;
-    float2 cbcr = ChromaPlane.Sample(LinearClamp, i.uv).rg;
+
+    // Aspect handling: transform the sample UV, and (for Fit) paint the bars black.
+    float2 uv = i.uv * uUvScale + uUvOffset;
+    if (uLetterbox > 0.5 &&
+        (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)) {
+        return float4(0.0, 0.0, 0.0, 1.0);
+    }
+    uv = saturate(uv);
+
+    float  y    = LumaPlane.Sample(LinearClamp, uv).r;
+    float2 cbcr = ChromaPlane.Sample(LinearClamp, uv).rg;
     y  = (y - 16.0 / 255.0) * (255.0 / 219.0);
     float cb = (cbcr.x - 128.0 / 255.0) * (255.0 / 224.0);
     float cr = (cbcr.y - 128.0 / 255.0) * (255.0 / 224.0);
@@ -248,10 +260,11 @@ void VideoRenderer::CreatePipeline() {
     ThrowIfFailed(device_->CreateSamplerState(&sd, sampler_.GetAddressOf()),
                   "CreateSamplerState");
 
-    // Color-grade constant buffer (b0), seeded with identity params.
-    const float identity[12] = {1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
+    // Color-grade + aspect constant buffer (b0), seeded with identity params.
+    const float identity[16] = {1, 1, 1, 1, 1, 1, 1, 0,
+                                0, 0, 1, 1, 0, 0, 0, 0};
     D3D11_BUFFER_DESC cbd{};
-    cbd.ByteWidth = sizeof(identity);  // 48 bytes (multiple of 16)
+    cbd.ByteWidth = sizeof(identity);  // 64 bytes (multiple of 16)
     cbd.Usage = D3D11_USAGE_DEFAULT;
     cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     D3D11_SUBRESOURCE_DATA cbInit{};
@@ -260,12 +273,28 @@ void VideoRenderer::CreatePipeline() {
                   "CreateBuffer(post)");
 }
 
-void VideoRenderer::SetPostParams(const PostParams& p) {
+// Resolve the aspect mode against the video + surface size and upload the full
+// color/aspect constant buffer. Called from PresentFrame (dims are known there).
+void VideoRenderer::UploadPostCb(UINT frameW, UINT frameH) {
     if (!postCb_) return;
+    float sx = 1.0f, sy = 1.0f, ox = 0.0f, oy = 0.0f, letterbox = 0.0f;
+    if (frameW > 0 && frameH > 0 && width_ > 0 && height_ > 0) {
+        const float surfAR = static_cast<float>(width_) / static_cast<float>(height_);
+        const float vidAR = static_cast<float>(frameW) / static_cast<float>(frameH);
+        if (post_.aspectMode == 0) {          // Fill / cover (crop overflow)
+            if (vidAR > surfAR) { sx = surfAR / vidAR; ox = (1.0f - sx) * 0.5f; }
+            else                { sy = vidAR / surfAR; oy = (1.0f - sy) * 0.5f; }
+        } else if (post_.aspectMode == 1) {   // Fit / contain (letterbox)
+            letterbox = 1.0f;
+            if (vidAR > surfAR) { const float f = surfAR / vidAR; sy = 1.0f / f; oy = -((1.0f - f) * 0.5f) / f; }
+            else                { const float f = vidAR / surfAR; sx = 1.0f / f; ox = -((1.0f - f) * 0.5f) / f; }
+        }
+        // aspectMode == 2 (Stretch): identity transform.
+    }
     // Must match the HLSL cbuffer Post layout exactly.
-    const float cb[12] = {p.brightness, p.contrast, p.saturation, p.gamma,
-                          p.tintR, p.tintG, p.tintB, p.temperature,
-                          p.blackout, 0.0f, 0.0f, 0.0f};
+    const float cb[16] = {post_.brightness, post_.contrast, post_.saturation, post_.gamma,
+                          post_.tintR, post_.tintG, post_.tintB, post_.temperature,
+                          post_.blackout, letterbox, sx, sy, ox, oy, 0.0f, 0.0f};
     context_->UpdateSubresource(postCb_.Get(), 0, nullptr, cb, 0, 0);
 }
 
@@ -357,8 +386,9 @@ void VideoRenderer::PresentFrame(ID3D11Texture2D* nv12, UINT subresource,
     context_->PSSetShaderResources(0, 2, srvs);
     ID3D11SamplerState* samplers[] = {sampler_.Get()};
     context_->PSSetSamplers(0, 1, samplers);
+    UploadPostCb(frameW, frameH);  // resolve aspect vs this frame + surface
     ID3D11Buffer* cbs[] = {postCb_.Get()};
-    context_->PSSetConstantBuffers(0, 1, cbs);  // b0: color-grade params
+    context_->PSSetConstantBuffers(0, 1, cbs);  // b0: color-grade + aspect params
 
     context_->Draw(3, 0);
 

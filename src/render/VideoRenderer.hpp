@@ -50,9 +50,11 @@ public:
         float tintB = 1.0f;
         float temperature = 0.0f;  // -1 warm .. +1 cool
         float blackout = 0.0f;     // 1 => render solid black (privacy)
+        int   aspectMode = 0;      // 0 Fill (cover), 1 Fit (letterbox), 2 Stretch
     };
-    // Upload new color-grade params (call from the render thread before Present).
-    void SetPostParams(const PostParams& params);
+    // Stash color/aspect params (call from the render thread before Present).
+    // Aspect is resolved against the frame + surface size inside PresentFrame.
+    void SetPostParams(const PostParams& params) { post_ = params; }
 
     // Shared with Media Foundation's IMFDXGIDeviceManager.
     [[nodiscard]] ID3D11Device* Device() const noexcept { return device_.Get(); }
@@ -74,6 +76,7 @@ private:
     void CreateDeviceAndSwapChain();
     void CreatePipeline();                 // shaders + sampler
     void EnsureNV12Intermediate(UINT w, UINT h);  // lazy, once per size
+    void UploadPostCb(UINT frameW, UINT frameH);  // color + aspect -> b0
 
     HWND target_ = nullptr;
 
@@ -87,7 +90,8 @@ private:
     ComPtr<ID3D11VertexShader> vs_;
     ComPtr<ID3D11PixelShader> ps_;
     ComPtr<ID3D11SamplerState> sampler_;
-    ComPtr<ID3D11Buffer> postCb_;  // b0: color-grade constants
+    ComPtr<ID3D11Buffer> postCb_;  // b0: color-grade + aspect constants
+    PostParams post_;              // latest params (uploaded in PresentFrame)
 
     // App-owned, shader-readable NV12 texture. Decoder output textures are not
     // reliably shader-readable, so each frame is GPU->GPU copied here (no CPU

@@ -72,6 +72,7 @@ public:
     [[nodiscard]] bool  PauseOnFullscreen() const noexcept { return aPauseFull_.load(std::memory_order_relaxed); }
     [[nodiscard]] bool  PauseOnFocused() const noexcept { return aPauseFocus_.load(std::memory_order_relaxed); }
     [[nodiscard]] bool  PauseOnBattery() const noexcept { return aPauseBatt_.load(std::memory_order_relaxed); }
+    [[nodiscard]] int   Aspect() const noexcept { return aAspect_.load(std::memory_order_relaxed); }
     // Color / post-processing (render thread reads these lock-free each frame).
     [[nodiscard]] float Brightness() const noexcept { return aBrightness_.load(std::memory_order_relaxed); }
     [[nodiscard]] float Contrast() const noexcept { return aContrast_.load(std::memory_order_relaxed); }
@@ -138,6 +139,7 @@ private:
     std::atomic<bool>  aPauseFull_{true};
     std::atomic<bool>  aPauseFocus_{false};
     std::atomic<bool>  aPauseBatt_{true};
+    std::atomic<int>   aAspect_{0};  // 0 Fill, 1 Fit, 2 Stretch
     std::atomic<float> aBrightness_{1.0f};
     std::atomic<float> aContrast_{1.0f};
     std::atomic<float> aSaturation_{1.0f};

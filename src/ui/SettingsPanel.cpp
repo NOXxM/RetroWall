@@ -782,19 +782,23 @@ void SettingsPanel::TabDisplay() {
     ImGui::SameLine();
     ImGui::TextDisabled("(press Apply)");
 
-    int layout = static_cast<int>(ui_.layout);
-    ImGui::SetNextItemWidth(260);
-    if (ImGui::Combo("Layout Mode", &layout, "Per-Monitor\0Stretch\0Clone\0\0")) {
-        ui_.layout = static_cast<config::LayoutMode>(layout);
-        dirty_ = true;
-    }
-
     int aspect = static_cast<int>(ui_.aspect);
     ImGui::SetNextItemWidth(260);
     if (ImGui::Combo("Aspect Ratio", &aspect, "Fill\0Fit\0Stretch\0\0")) {
         ui_.aspect = static_cast<config::AspectMode>(aspect);
         dirty_ = true;
     }
+    ImGui::TextDisabled("Fill = cover/crop  \xC2\xB7  Fit = letterbox  \xC2\xB7  Stretch = distort");
+
+    // Layout Mode is a multi-monitor rendering feature that isn't wired to the
+    // render path yet — shown disabled so it doesn't look broken.
+    ImGui::Spacing();
+    int layout = static_cast<int>(ui_.layout);
+    ImGui::BeginDisabled();
+    ImGui::SetNextItemWidth(260);
+    ImGui::Combo("Layout Mode", &layout, "Per-Monitor\0Stretch\0Clone\0\0");
+    ImGui::EndDisabled();
+    ImGui::TextDisabled("Multi-monitor layout — coming soon.");
 }
 
 void SettingsPanel::TabPerformance() {
