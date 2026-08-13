@@ -49,12 +49,13 @@ private:
 
     // UI
     void BuildUi();
-    void ApplyClassicTheme();   // Windows 95/98 chiseled look, dark mode
+    void ApplyMacTheme();       // macOS dark appearance (rounded, flat)
     void LoadFonts();
     bool LoadLogoTexture();     // WIC-decode the embedded RW logo -> D3D texture
-    void DrawTitleBar(float width);
-    void DrawTabRow(float x, float y, float w);
-    bool XpButton(const char* label, float w, float h);  // beveled 3D button
+    void DrawTitleBar(float width);          // traffic lights + centered title
+    void DrawSidebar(float x, float y, float w, float h);  // macOS source list
+    bool MacButton(const char* label, float w, float h, bool primary = false);
+    bool MacToggle(const char* label, bool* v);  // pill switch (checkbox replacement)
     void TabLibrary();
     void TabDisplay();
     void TabPerformance();
@@ -110,9 +111,10 @@ private:
     int                       thumbW_ = 0;
     int                       thumbH_ = 0;
 
-    // Retro theming assets (panel thread only).
-    void*   bodyFont_ = nullptr;   // ImFont* (Tahoma) — void* to keep imgui out of the header
-    void*   titleFont_ = nullptr;  // ImFont* (Tahoma Bold)
+    // Theming assets (panel thread only).
+    void*   bodyFont_ = nullptr;   // ImFont* (Segoe UI) — void* to keep imgui out of the header
+    void*   titleFont_ = nullptr;  // ImFont* (Segoe UI Bold, body size)
+    void*   headerFont_ = nullptr; // ImFont* (Segoe UI Bold, large — section titles)
     ID3D11ShaderResourceView* logoSrv_ = nullptr;
     int     logoW_ = 0;
     int     logoH_ = 0;

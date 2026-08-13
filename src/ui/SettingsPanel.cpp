@@ -4,8 +4,10 @@
 #include <windowsx.h>  // GET_X_LPARAM / GET_Y_LPARAM
 #include <wincodec.h>  // WIC: decode the embedded logo PNG
 #include <shobjidl.h>  // IFileOpenDialog (folder picker)
+#include <dwmapi.h>    // DwmSetWindowAttribute (rounded corners, Win11)
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -16,6 +18,17 @@
 #include "backends/imgui_impl_win32.h"
 
 #include "win32/Resources.hpp"
+
+// DWM attributes for the modern rounded window (defined on newer SDKs only).
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWCP_ROUND
+#define DWMWCP_ROUND 2
+#endif
 
 // Provided by imgui_impl_win32.cpp.
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg,
@@ -30,70 +43,65 @@ constexpr wchar_t kPanelClassName[] = L"LWE_SettingsPanel";
 constexpr int kPanelW = 1000;
 constexpr int kPanelH = 650;
 
-// Layout metrics (classic "Find" dialog).
-constexpr float kTitleH = 30.0f;
-constexpr float kMenuH = 22.0f;
-constexpr float kTabH = 24.0f;
-constexpr float kStatusH = 22.0f;
-constexpr float kMargin = 12.0f;
-constexpr float kBtnColW = 100.0f;
+// --- Layout metrics (macOS System Settings) ---------------------------------
+constexpr float kTitleH = 44.0f;    // unified toolbar / drag strip
+constexpr float kSidebarW = 190.0f; // source-list column
+constexpr float kPad = 28.0f;       // content padding
+constexpr float kBtnW = 96.0f;
+constexpr float kBtnH = 30.0f;
 
-// --- Windows 95/98 chiseled palette, DARK mode (draw-list ImU32) ------------
-constexpr ImU32 kFace = IM_COL32(58, 58, 60, 255);      // dialog face
-constexpr ImU32 kFaceLite = IM_COL32(72, 72, 75, 255);  // raised page
-constexpr ImU32 kFaceHi = IM_COL32(84, 84, 88, 255);    // button hover
-constexpr ImU32 kFaceDn = IM_COL32(44, 44, 46, 255);    // button pressed
-constexpr ImU32 kHilite = IM_COL32(124, 124, 128, 255); // outer light bevel
-constexpr ImU32 kLight = IM_COL32(94, 94, 98, 255);     // inner light bevel
-constexpr ImU32 kShadow = IM_COL32(30, 30, 32, 255);    // inner dark bevel
-constexpr ImU32 kDkShadow = IM_COL32(0, 0, 0, 255);     // outer dark bevel
-constexpr ImU32 kFieldBg = IM_COL32(24, 24, 26, 255);   // sunken input
-constexpr ImU32 kTextCol = IM_COL32(230, 230, 232, 255);
-constexpr ImU32 kTextDimCol = IM_COL32(132, 132, 134, 255);
-constexpr ImU32 kAccent = IM_COL32(46, 96, 160, 255);   // selection / menu hi
-constexpr ImU32 kTabUnsel = IM_COL32(50, 50, 52, 255);
-constexpr ImU32 kTitleTop = IM_COL32(48, 50, 60, 255);  // dark title gradient
-constexpr ImU32 kTitleBot = IM_COL32(18, 18, 24, 255);
-constexpr ImU32 kTitleGloss = IM_COL32(90, 94, 110, 255);
+// --- macOS dark-appearance palette (draw-list ImU32) ------------------------
+constexpr ImU32 kcWin = IM_COL32(30, 30, 32, 255);       // content background
+constexpr ImU32 kcSidebar = IM_COL32(44, 44, 48, 255);   // source list
+constexpr ImU32 kcCard = IM_COL32(48, 48, 52, 255);      // grouped card / list
+constexpr ImU32 kcField = IM_COL32(20, 20, 22, 255);     // sunken preview well
+constexpr ImU32 kcControl = IM_COL32(66, 66, 71, 255);   // secondary button
+constexpr ImU32 kcControlHi = IM_COL32(82, 82, 88, 255); // secondary hover
+constexpr ImU32 kcControlDn = IM_COL32(54, 54, 59, 255); // secondary pressed
+constexpr ImU32 kcSep = IM_COL32(255, 255, 255, 20);     // hairline separator
+constexpr ImU32 kcText = IM_COL32(236, 236, 238, 255);
+constexpr ImU32 kcText2 = IM_COL32(152, 152, 158, 255);  // secondary label
+constexpr ImU32 kcAccent = IM_COL32(10, 132, 255, 255);  // systemBlue (dark)
+constexpr ImU32 kcAccentHi = IM_COL32(52, 158, 255, 255);
+constexpr ImU32 kcAccentDn = IM_COL32(0, 106, 214, 255);
+constexpr ImU32 kcToggleOff = IM_COL32(84, 84, 90, 255);
+constexpr ImU32 kcHoverPill = IM_COL32(255, 255, 255, 18);
+constexpr ImU32 kcWhite = IM_COL32(255, 255, 255, 255);
+
+// Traffic lights.
+constexpr ImU32 kcTLRed = IM_COL32(255, 95, 86, 255);
+constexpr ImU32 kcTLYellow = IM_COL32(255, 189, 46, 255);
+constexpr ImU32 kcTLGreen = IM_COL32(39, 201, 63, 255);
+constexpr ImU32 kcTLGlyph = IM_COL32(0, 0, 0, 110);
 
 // --- ImVec4 mirror for the ImGui widget style -------------------------------
-constexpr ImVec4 kFaceV = {0.227f, 0.227f, 0.235f, 1.0f};
-constexpr ImVec4 kFieldV = {0.094f, 0.094f, 0.102f, 1.0f};
-constexpr ImVec4 kTextV = {0.902f, 0.902f, 0.910f, 1.0f};
-constexpr ImVec4 kTextDimV = {0.517f, 0.517f, 0.525f, 1.0f};
-constexpr ImVec4 kAccentV = {0.180f, 0.376f, 0.627f, 1.0f};
-constexpr ImVec4 kAccentHiV = {0.243f, 0.455f, 0.729f, 1.0f};
-constexpr ImVec4 kShadowV = {0.118f, 0.118f, 0.125f, 1.0f};
-constexpr ImVec4 kHeaderBlue = {0.53f, 0.72f, 1.0f, 1.0f};  // section titles
+constexpr ImVec4 kWinV = {0.118f, 0.118f, 0.125f, 1.0f};
+constexpr ImVec4 kCardV = {0.188f, 0.188f, 0.204f, 1.0f};
+constexpr ImVec4 kFieldV = {0.078f, 0.078f, 0.086f, 1.0f};
+constexpr ImVec4 kControlV = {0.259f, 0.259f, 0.278f, 1.0f};
+constexpr ImVec4 kControlHiV = {0.322f, 0.322f, 0.345f, 1.0f};
+constexpr ImVec4 kTextV = {0.925f, 0.925f, 0.933f, 1.0f};
+constexpr ImVec4 kText2V = {0.596f, 0.596f, 0.620f, 1.0f};
+constexpr ImVec4 kAccentV = {0.039f, 0.518f, 1.0f, 1.0f};
+constexpr ImVec4 kAccentHiV = {0.204f, 0.620f, 1.0f, 1.0f};
+constexpr ImVec4 kSepV = {1.0f, 1.0f, 1.0f, 0.078f};
+constexpr ImVec4 kSubheadV = {0.596f, 0.596f, 0.620f, 1.0f};  // group subheaders
 
-// Classic 2px chisel: raised = light top-left / dark bottom-right (sunken swaps).
-void Bevel(ImDrawList* dl, const ImVec2& a, const ImVec2& b, bool raised) {
-    const ImU32 oLT = raised ? kHilite : kDkShadow;
-    const ImU32 oRB = raised ? kDkShadow : kHilite;
-    const ImU32 iLT = raised ? kLight : kShadow;
-    const ImU32 iRB = raised ? kShadow : kLight;
-    const float r = b.x - 1, bot = b.y - 1;
-    dl->AddLine(ImVec2(a.x, a.y), ImVec2(r, a.y), oLT);       // outer top
-    dl->AddLine(ImVec2(a.x, a.y), ImVec2(a.x, bot), oLT);     // outer left
-    dl->AddLine(ImVec2(a.x, bot), ImVec2(r, bot), oRB);       // outer bottom
-    dl->AddLine(ImVec2(r, a.y), ImVec2(r, bot), oRB);         // outer right
-    dl->AddLine(ImVec2(a.x + 1, a.y + 1), ImVec2(r - 1, a.y + 1), iLT);
-    dl->AddLine(ImVec2(a.x + 1, a.y + 1), ImVec2(a.x + 1, bot - 1), iLT);
-    dl->AddLine(ImVec2(a.x + 1, bot - 1), ImVec2(r - 1, bot - 1), iRB);
-    dl->AddLine(ImVec2(r - 1, a.y + 1), ImVec2(r - 1, bot - 1), iRB);
-}
-
-struct CapButtons {
-    ImVec4 minb;    // (l,t,r,b) in client coords
-    ImVec4 closeb;
+// Three round window buttons, top-left (client coords). [0]=close [1]=min [2]=zoom.
+struct TrafficLights {
+    ImVec2 c[3];
+    float r;
 };
 
-CapButtons TitleButtonRects(float clientW) {
-    const float bw = 22.0f, bh = 20.0f, top = 5.0f, gap = 2.0f, margin = 6.0f;
-    CapButtons b;
-    b.closeb = ImVec4(clientW - margin - bw, top, clientW - margin, top + bh);
-    b.minb = ImVec4(b.closeb.x - gap - bw, top, b.closeb.x - gap, top + bh);
-    return b;
+TrafficLights TrafficLightRects() {
+    TrafficLights t;
+    t.r = 6.5f;
+    const float y = kTitleH * 0.5f;
+    const float x0 = 21.0f, gap = 20.0f;
+    t.c[0] = ImVec2(x0, y);
+    t.c[1] = ImVec2(x0 + gap, y);
+    t.c[2] = ImVec2(x0 + 2 * gap, y);
+    return t;
 }
 
 std::string Narrow(const std::wstring& w) {
@@ -105,6 +113,97 @@ std::string Narrow(const std::wstring& w) {
     ::WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
                           s.data(), n, nullptr, nullptr);
     return s;
+}
+
+// A rounded, filled surface with an optional hairline border (macOS card).
+void Card(ImDrawList* dl, const ImVec2& a, const ImVec2& b, ImU32 fill,
+          float rounding, bool border = true) {
+    dl->AddRectFilled(a, b, fill, rounding);
+    if (border) dl->AddRect(a, b, kcSep, rounding, 0, 1.0f);
+}
+
+// The colored rounded-square icon tile + a simple white glyph, macOS-style.
+void SectionIcon(ImDrawList* dl, ImVec2 c, float tile, int section) {
+    static const ImU32 kTint[7] = {
+        IM_COL32(10, 132, 255, 255),   // Library  — blue
+        IM_COL32(94, 92, 230, 255),    // Display  — indigo
+        IM_COL32(255, 159, 10, 255),   // Perf     — orange
+        IM_COL32(255, 69, 58, 255),    // Audio    — red
+        IM_COL32(142, 142, 147, 255),  // System   — gray
+        IM_COL32(191, 90, 242, 255),   // Color    — purple
+        IM_COL32(48, 209, 88, 255),    // Schedule — green
+    };
+    const float h = tile * 0.5f;
+    const ImVec2 a(c.x - h, c.y - h), b(c.x + h, c.y + h);
+    dl->AddRectFilled(a, b, kTint[section], tile * 0.28f);
+
+    const ImU32 g = kcWhite;
+    const float th = 1.6f;
+    const float u = tile * 0.16f;  // glyph unit
+    switch (section) {
+        case 0: {  // Library — 2x2 photo grid
+            const float s = u * 0.9f;
+            for (int i = 0; i < 2; ++i)
+                for (int j = 0; j < 2; ++j) {
+                    const ImVec2 p(c.x - u * 1.1f + i * (s + u * 0.5f),
+                                   c.y - u * 1.1f + j * (s + u * 0.5f));
+                    dl->AddRectFilled(p, ImVec2(p.x + s, p.y + s), g, 1.2f);
+                }
+            break;
+        }
+        case 1: {  // Display — monitor
+            dl->AddRect(ImVec2(c.x - u * 1.6f, c.y - u * 1.3f),
+                        ImVec2(c.x + u * 1.6f, c.y + u * 0.6f), g, 1.6f, 0, th);
+            dl->AddLine(ImVec2(c.x - u * 0.8f, c.y + u * 1.4f),
+                        ImVec2(c.x + u * 0.8f, c.y + u * 1.4f), g, th);
+            break;
+        }
+        case 2: {  // Performance — ascending bars
+            for (int i = 0; i < 3; ++i) {
+                const float bh = u * (0.8f + i * 0.7f);
+                const float x = c.x - u * 1.4f + i * u * 1.3f;
+                dl->AddRectFilled(ImVec2(x, c.y + u * 1.4f - bh),
+                                  ImVec2(x + u * 0.8f, c.y + u * 1.4f), g, 0.8f);
+            }
+            break;
+        }
+        case 3: {  // Audio — speaker + wave
+            dl->AddRectFilled(ImVec2(c.x - u * 1.6f, c.y - u * 0.7f),
+                              ImVec2(c.x - u * 0.6f, c.y + u * 0.7f), g, 0.6f);
+            dl->AddTriangleFilled(ImVec2(c.x - u * 0.6f, c.y - u * 1.4f),
+                                  ImVec2(c.x + u * 0.4f, c.y),
+                                  ImVec2(c.x - u * 0.6f, c.y + u * 1.4f), g);
+            dl->PathArcTo(ImVec2(c.x - u * 0.6f, c.y), u * 1.6f, -0.9f, 0.9f, 12);
+            dl->PathStroke(g, 0, th);
+            break;
+        }
+        case 4: {  // System — gear
+            dl->AddCircle(c, u * 1.4f, g, 16, th);
+            dl->AddCircleFilled(c, u * 0.5f, g);
+            for (int i = 0; i < 6; ++i) {
+                const float ang = i * 3.14159f / 3.0f;
+                const ImVec2 d(std::cos(ang), std::sin(ang));
+                dl->AddLine(ImVec2(c.x + d.x * u * 1.4f, c.y + d.y * u * 1.4f),
+                            ImVec2(c.x + d.x * u * 2.0f, c.y + d.y * u * 2.0f), g, th);
+            }
+            break;
+        }
+        case 5: {  // Color — droplet
+            dl->AddCircleFilled(ImVec2(c.x, c.y + u * 0.4f), u * 1.3f, g);
+            dl->AddTriangleFilled(ImVec2(c.x, c.y - u * 1.8f),
+                                  ImVec2(c.x - u * 1.1f, c.y + u * 0.2f),
+                                  ImVec2(c.x + u * 1.1f, c.y + u * 0.2f), g);
+            break;
+        }
+        case 6: {  // Schedule — clock
+            dl->AddCircle(c, u * 1.6f, g, 18, th);
+            dl->AddLine(c, ImVec2(c.x, c.y - u * 1.0f), g, th);
+            dl->AddLine(c, ImVec2(c.x + u * 0.9f, c.y), g, th);
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 }  // namespace
@@ -200,7 +299,7 @@ bool SettingsPanel::InitGraphics() {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     LoadFonts();
-    ApplyClassicTheme();
+    ApplyMacTheme();
     ImGui_ImplWin32_Init(hwnd_);
     ImGui_ImplDX11_Init(device_, context_);
     LoadLogoTexture();
@@ -252,7 +351,15 @@ bool SettingsPanel::CreatePanelWindow() {
     hwnd_ = ::CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOM(wndClass_),
                              L"RetroWall \x2014 Settings", style, x, y, w, h,
                              nullptr, nullptr, instance_, this);
-    return hwnd_ != nullptr;
+    if (hwnd_ == nullptr) return false;
+
+    // Modern rounded corners + a soft border (Windows 11; ignored on Win10).
+    DWORD corner = DWMWCP_ROUND;
+    ::DwmSetWindowAttribute(hwnd_, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
+                            sizeof(corner));
+    COLORREF border = RGB(64, 64, 70);
+    ::DwmSetWindowAttribute(hwnd_, DWMWA_BORDER_COLOR, &border, sizeof(border));
+    return true;
 }
 
 bool SettingsPanel::CreateDeviceAndSwapChain() {
@@ -305,8 +412,10 @@ void SettingsPanel::CleanupRenderTarget() {
 void SettingsPanel::LoadFonts() {
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->Clear();
-    bodyFont_ = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\tahoma.ttf", 15.0f);
-    titleFont_ = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\tahomabd.ttf", 15.0f);
+    // Segoe UI is the closest system face to SF Pro on Windows.
+    bodyFont_ = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 15.0f);
+    titleFont_ = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuib.ttf", 15.0f);
+    headerFont_ = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuib.ttf", 23.0f);
     if (bodyFont_ == nullptr) {
         io.Fonts->AddFontDefault();
     }
@@ -401,7 +510,7 @@ void SettingsPanel::RenderFrame() {
     BuildUi();
 
     ImGui::Render();
-    const float clear[4] = {0.227f, 0.227f, 0.235f, 1.0f};  // dialog face
+    const float clear[4] = {0.118f, 0.118f, 0.125f, 1.0f};  // content background
     context_->OMSetRenderTargets(1, &rtv_, nullptr);
     context_->ClearRenderTargetView(rtv_, clear);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -411,52 +520,60 @@ void SettingsPanel::RenderFrame() {
 }
 
 // ---------------------------------------------------------------------------
-// Theme
+// Theme — macOS dark appearance: rounded, flat, generous spacing.
 // ---------------------------------------------------------------------------
-void SettingsPanel::ApplyClassicTheme() {
+void SettingsPanel::ApplyMacTheme() {
     ImGui::StyleColorsDark();
     ImGuiStyle& s = ImGui::GetStyle();
     s.WindowRounding = 0.0f;
-    s.ChildRounding = 0.0f;
-    s.FrameRounding = 0.0f;
-    s.GrabRounding = 0.0f;
-    s.PopupRounding = 0.0f;
-    s.ScrollbarRounding = 0.0f;
+    s.ChildRounding = 8.0f;
+    s.FrameRounding = 6.0f;
+    s.GrabRounding = 10.0f;
+    s.PopupRounding = 8.0f;
+    s.ScrollbarRounding = 10.0f;
+    s.TabRounding = 6.0f;
     s.WindowBorderSize = 0.0f;
     s.ChildBorderSize = 0.0f;
-    s.FrameBorderSize = 1.0f;
-    s.PopupBorderSize = 1.0f;
+    s.FrameBorderSize = 0.0f;
+    s.PopupBorderSize = 0.0f;
     s.WindowPadding = ImVec2(0, 0);
-    s.ItemSpacing = ImVec2(10, 9);
-    s.FramePadding = ImVec2(6, 4);
+    s.ItemSpacing = ImVec2(10, 12);
+    s.ItemInnerSpacing = ImVec2(8, 6);
+    s.FramePadding = ImVec2(9, 6);
+    s.GrabMinSize = 18.0f;
+    s.ScrollbarSize = 12.0f;
 
     ImVec4* c = s.Colors;
-    c[ImGuiCol_WindowBg] = kFaceV;
+    c[ImGuiCol_WindowBg] = kWinV;
     c[ImGuiCol_ChildBg] = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_PopupBg] = ImVec4(0.267f, 0.267f, 0.275f, 1.0f);
+    c[ImGuiCol_PopupBg] = ImVec4(0.156f, 0.156f, 0.168f, 0.98f);
     c[ImGuiCol_Text] = kTextV;
-    c[ImGuiCol_TextDisabled] = kTextDimV;
-    c[ImGuiCol_FrameBg] = kFieldV;
-    c[ImGuiCol_FrameBgHovered] = ImVec4(0.14f, 0.14f, 0.16f, 1.0f);
-    c[ImGuiCol_FrameBgActive] = ImVec4(0.16f, 0.16f, 0.18f, 1.0f);
+    c[ImGuiCol_TextDisabled] = kText2V;
+    c[ImGuiCol_FrameBg] = kCardV;
+    c[ImGuiCol_FrameBgHovered] = kControlV;
+    c[ImGuiCol_FrameBgActive] = kControlHiV;
     c[ImGuiCol_Header] = kAccentV;
-    c[ImGuiCol_HeaderHovered] = kAccentHiV;
-    c[ImGuiCol_HeaderActive] = kAccentV;
-    c[ImGuiCol_Button] = kFaceV;
-    c[ImGuiCol_ButtonHovered] = ImVec4(0.33f, 0.33f, 0.34f, 1.0f);
-    c[ImGuiCol_ButtonActive] = ImVec4(0.20f, 0.20f, 0.21f, 1.0f);
-    c[ImGuiCol_SliderGrab] = kAccentV;
-    c[ImGuiCol_SliderGrabActive] = kAccentHiV;
-    c[ImGuiCol_CheckMark] = kTextV;
-    c[ImGuiCol_Separator] = kShadowV;
-    c[ImGuiCol_Border] = kShadowV;
-    c[ImGuiCol_PopupBg] = ImVec4(0.267f, 0.267f, 0.275f, 1.0f);
+    c[ImGuiCol_HeaderHovered] = kControlV;
+    c[ImGuiCol_HeaderActive] = kAccentHiV;
+    c[ImGuiCol_Button] = kControlV;
+    c[ImGuiCol_ButtonHovered] = kControlHiV;
+    c[ImGuiCol_ButtonActive] = ImVec4(0.212f, 0.212f, 0.231f, 1.0f);
+    c[ImGuiCol_SliderGrab] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    c[ImGuiCol_SliderGrabActive] = ImVec4(0.925f, 0.925f, 0.933f, 1.0f);
+    c[ImGuiCol_CheckMark] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    c[ImGuiCol_Separator] = kSepV;
+    c[ImGuiCol_SeparatorHovered] = kSepV;
+    c[ImGuiCol_Border] = kSepV;
+    c[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_ScrollbarGrab] = ImVec4(1.0f, 1.0f, 1.0f, 0.16f);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(1.0f, 1.0f, 1.0f, 0.24f);
+    c[ImGuiCol_ScrollbarGrabActive] = ImVec4(1.0f, 1.0f, 1.0f, 0.32f);
 }
 
 // ---------------------------------------------------------------------------
-// Beveled 3D button (raised; inverts to sunken when pressed).
+// Rounded, filled button. Primary = system-blue fill; secondary = graphite.
 // ---------------------------------------------------------------------------
-bool SettingsPanel::XpButton(const char* label, float w, float h) {
+bool SettingsPanel::MacButton(const char* label, float w, float h, bool primary) {
     const ImVec2 size(w, h);
     const ImVec2 p = ImGui::GetCursorScreenPos();
     const bool pressed = ImGui::InvisibleButton(label, size);
@@ -465,103 +582,146 @@ bool SettingsPanel::XpButton(const char* label, float w, float h) {
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 q(p.x + size.x, p.y + size.y);
-    dl->AddRectFilled(p, q, held ? kFaceDn : (hovered ? kFaceHi : kFace));
-    Bevel(dl, p, q, !held);
+    ImU32 fill;
+    if (primary)
+        fill = held ? kcAccentDn : (hovered ? kcAccentHi : kcAccent);
+    else
+        fill = held ? kcControlDn : (hovered ? kcControlHi : kcControl);
+    dl->AddRectFilled(p, q, fill, 7.0f);
+    if (!primary) dl->AddRect(p, q, kcSep, 7.0f, 0, 1.0f);
 
     const ImVec2 ts = ImGui::CalcTextSize(label);
-    ImVec2 tp(p.x + (size.x - ts.x) * 0.5f, p.y + (size.y - ts.y) * 0.5f);
-    if (held) { tp.x += 1; tp.y += 1; }
-    dl->AddText(tp, kTextCol, label);
+    const ImVec2 tp(p.x + (size.x - ts.x) * 0.5f, p.y + (size.y - ts.y) * 0.5f);
+    dl->AddText(tp, primary ? kcWhite : kcText, label);
     return pressed;
 }
 
 // ---------------------------------------------------------------------------
-// Title bar: dark gradient, RW logo, title, minimize + close.
+// macOS pill switch — a labelled, right-aligned toggle (replaces Checkbox).
+// ---------------------------------------------------------------------------
+bool SettingsPanel::MacToggle(const char* label, bool* v) {
+    const float rowW = 430.0f, rowH = 24.0f;
+    const float trackW = 40.0f, trackH = 22.0f, knobR = 9.0f;
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const bool clicked = ImGui::InvisibleButton(label, ImVec2(rowW, rowH));
+    if (clicked) *v = !*v;
+    const bool hovered = ImGui::IsItemHovered();
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 ts = ImGui::CalcTextSize(label);
+    dl->AddText(ImVec2(p.x, p.y + (rowH - ts.y) * 0.5f), kcText, label);
+
+    const ImVec2 t0(p.x + rowW - trackW, p.y + (rowH - trackH) * 0.5f);
+    const ImVec2 t1(t0.x + trackW, t0.y + trackH);
+    ImU32 track = *v ? kcAccent : kcToggleOff;
+    if (hovered && !*v) track = kcControlHi;
+    dl->AddRectFilled(t0, t1, track, trackH * 0.5f);
+    const float cy = (t0.y + t1.y) * 0.5f;
+    const float cx = *v ? (t1.x - knobR - 2.0f) : (t0.x + knobR + 2.0f);
+    dl->AddCircleFilled(ImVec2(cx, cy), knobR, kcWhite);
+    return clicked;
+}
+
+// ---------------------------------------------------------------------------
+// Title strip: three traffic lights (left) + centered window title.
 // ---------------------------------------------------------------------------
 void SettingsPanel::DrawTitleBar(float width) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 o = ImGui::GetMainViewport()->Pos;
-    const ImVec2 tl(o.x, o.y);
-    const ImVec2 br(o.x + width, o.y + kTitleH);
-    dl->AddRectFilledMultiColor(tl, br, kTitleTop, kTitleTop, kTitleBot, kTitleBot);
-    dl->AddLine(ImVec2(tl.x, o.y + 1), ImVec2(br.x, o.y + 1), kTitleGloss);
 
-    float textX = o.x + 9.0f;
-    if (logoSrv_ != nullptr) {
-        const float ih = 20.0f;
-        const float iw = ih * (logoH_ ? float(logoW_) / float(logoH_) : 1.0f);
-        const ImVec2 ip(o.x + 8.0f, o.y + (kTitleH - ih) * 0.5f);
-        dl->AddImage(reinterpret_cast<ImTextureID>(logoSrv_), ip,
-                     ImVec2(ip.x + iw, ip.y + ih));
-        textX = ip.x + iw + 8.0f;
-    }
-
+    // Centered window title over the content region.
     ImFont* tf = static_cast<ImFont*>(titleFont_);
-    const char* title = "RetroWall  \xC2\xB7  Find Settings";
+    const char* title = "RetroWall \xC2\xB7 Settings";
     const float fh = 15.0f;
-    const ImVec2 tp(textX, o.y + (kTitleH - fh) * 0.5f);
-    if (tf) {
-        dl->AddText(tf, fh, ImVec2(tp.x + 1, tp.y + 1), IM_COL32(0, 0, 0, 180), title);
-        dl->AddText(tf, fh, tp, IM_COL32(240, 240, 245, 255), title);
-    } else {
-        dl->AddText(tp, IM_COL32(240, 240, 245, 255), title);
-    }
+    const float centerX = o.x + kSidebarW + (width - kSidebarW) * 0.5f;
+    const ImVec2 ts = tf ? tf->CalcTextSizeA(fh, FLT_MAX, 0.0f, title)
+                         : ImGui::CalcTextSize(title);
+    const ImVec2 tp(centerX - ts.x * 0.5f, o.y + (kTitleH - fh) * 0.5f);
+    if (tf) dl->AddText(tf, fh, tp, kcText2, title);
+    else dl->AddText(tp, kcText2, title);
 
-    // caption buttons (beveled gray squares, classic style) ----------------
-    const CapButtons cb = TitleButtonRects(width);
-    auto drawCap = [&](const ImVec4& r, const char* id, bool isClose) -> bool {
-        const ImVec2 bp(o.x + r.x, o.y + r.y);
-        const ImVec2 bq(o.x + r.z, o.y + r.w);
-        ImGui::SetCursorScreenPos(bp);
-        const bool clicked = ImGui::InvisibleButton(id, ImVec2(r.z - r.x, r.w - r.y));
-        const bool held = ImGui::IsItemActive();
-        dl->AddRectFilled(bp, bq, held ? kFaceDn : kFace);
-        Bevel(dl, bp, bq, !held);
-        const float cx = (bp.x + bq.x) * 0.5f + (held ? 1 : 0);
-        const float cy = (bp.y + bq.y) * 0.5f + (held ? 1 : 0);
-        if (isClose) {
-            dl->AddLine(ImVec2(cx - 3, cy - 3), ImVec2(cx + 4, cy + 4), kTextCol, 1.4f);
-            dl->AddLine(ImVec2(cx - 3, cy + 3), ImVec2(cx + 4, cy - 4), kTextCol, 1.4f);
-        } else {
-            dl->AddLine(ImVec2(cx - 3, cy + 3), ImVec2(cx + 3, cy + 3), kTextCol, 1.6f);
+    // Traffic lights.
+    const TrafficLights tl = TrafficLightRects();
+    const ImU32 fills[3] = {kcTLRed, kcTLYellow, kcTLGreen};
+    for (int i = 0; i < 3; ++i) {
+        const ImVec2 c(o.x + tl.c[i].x, o.y + tl.c[i].y);
+        ImGui::SetCursorScreenPos(ImVec2(c.x - tl.r, c.y - tl.r));
+        char id[8];
+        id[0] = '#'; id[1] = '#'; id[2] = 't'; id[3] = 'l';
+        id[4] = static_cast<char>('0' + i); id[5] = '\0';
+        const bool clicked = ImGui::InvisibleButton(id, ImVec2(tl.r * 2, tl.r * 2));
+        const bool hovered = ImGui::IsItemHovered();
+        dl->AddCircleFilled(c, tl.r, fills[i], 16);
+        if (hovered) {  // reveal the glyph on hover, like macOS
+            if (i == 0) {  // close: ×
+                dl->AddLine(ImVec2(c.x - 2.6f, c.y - 2.6f),
+                            ImVec2(c.x + 2.6f, c.y + 2.6f), kcTLGlyph, 1.3f);
+                dl->AddLine(ImVec2(c.x - 2.6f, c.y + 2.6f),
+                            ImVec2(c.x + 2.6f, c.y - 2.6f), kcTLGlyph, 1.3f);
+            } else if (i == 1) {  // minimize: −
+                dl->AddLine(ImVec2(c.x - 3.0f, c.y), ImVec2(c.x + 3.0f, c.y),
+                            kcTLGlyph, 1.4f);
+            } else {  // zoom: + (inert)
+                dl->AddLine(ImVec2(c.x - 2.6f, c.y), ImVec2(c.x + 2.6f, c.y),
+                            kcTLGlyph, 1.4f);
+                dl->AddLine(ImVec2(c.x, c.y - 2.6f), ImVec2(c.x, c.y + 2.6f),
+                            kcTLGlyph, 1.4f);
+            }
         }
-        return clicked;
-    };
-    if (drawCap(cb.minb, "##min", false)) HideToTray();
-    if (drawCap(cb.closeb, "##close", true)) HideToTray();
+        if (clicked && i != 2) HideToTray();  // red/yellow hide; green is inert
+    }
 }
 
 // ---------------------------------------------------------------------------
-// Classic notched tab row. The selected tab pops up and merges with the page.
+// macOS source list: brand header, then a row per section with an icon tile
+// and a rounded selection pill.
 // ---------------------------------------------------------------------------
-void SettingsPanel::DrawTabRow(float x, float y, float /*w*/) {
+void SettingsPanel::DrawSidebar(float x, float y, float w, float h) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const char* tabs[] = {"Library", "Display", "Performance", "Audio",
-                          "System", "Color", "Schedule"};
-    float tx = x;
+    dl->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), kcSidebar);
+    dl->AddLine(ImVec2(x + w, y), ImVec2(x + w, y + h), kcSep);  // divider
+
+    // Brand header (below the traffic lights).
+    const float brandY = y + kTitleH + 8.0f;
+    float textX = x + 16.0f;
+    if (logoSrv_ != nullptr) {
+        const float ih = 22.0f;
+        const float iw = ih * (logoH_ ? float(logoW_) / float(logoH_) : 1.0f);
+        const ImVec2 ip(x + 16.0f, brandY);
+        dl->AddImage(reinterpret_cast<ImTextureID>(logoSrv_), ip,
+                     ImVec2(ip.x + iw, ip.y + ih));
+        textX = ip.x + iw + 9.0f;
+    }
+    ImFont* bf = static_cast<ImFont*>(titleFont_);
+    if (bf) dl->AddText(bf, 16.0f, ImVec2(textX, brandY + 2.0f), kcText, "RetroWall");
+    else dl->AddText(ImVec2(textX, brandY + 2.0f), kcText, "RetroWall");
+
+    static const char* kNames[7] = {"Library", "Display",  "Performance", "Audio",
+                                    "System",  "Color",    "Schedule"};
+    const float rowsTop = brandY + 40.0f;
+    const float rowH = 34.0f;
+    const float pillL = x + 8.0f, pillR = x + w - 8.0f;
+
     for (int i = 0; i < 7; ++i) {
+        const ImVec2 rp(x, rowsTop + i * rowH);
+        ImGui::SetCursorScreenPos(rp);
+        char id[16];
+        ::wsprintfA(id, "##side%d", i);
+        if (ImGui::InvisibleButton(id, ImVec2(w, rowH))) activeTab_ = i;
         const bool sel = (activeTab_ == i);
-        const ImVec2 ts = ImGui::CalcTextSize(tabs[i]);
-        const float tw = ts.x + 24.0f;
-        const float top = sel ? y - 2.0f : y + 1.0f;
-        const ImVec2 a(tx, top);
-        const ImVec2 b(tx + tw, y + kTabH + (sel ? 3.0f : 0.0f));
+        const bool hovered = ImGui::IsItemHovered();
 
-        ImGui::SetCursorScreenPos(ImVec2(tx, top));
-        if (ImGui::InvisibleButton(tabs[i], ImVec2(tw, (y + kTabH) - top))) {
-            activeTab_ = i;
-        }
-        dl->AddRectFilled(a, b, sel ? kFaceLite : kTabUnsel);
-        // top + side bevels (no bottom, so it reads as connected to the page)
-        dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x - 1, a.y), kHilite);      // top
-        dl->AddLine(ImVec2(a.x, a.y), ImVec2(a.x, b.y), kHilite);          // left
-        dl->AddLine(ImVec2(a.x + 1, a.y + 1), ImVec2(b.x - 1, a.y + 1), kLight);
-        dl->AddLine(ImVec2(b.x - 1, a.y), ImVec2(b.x - 1, b.y), kDkShadow);  // right
-        dl->AddLine(ImVec2(b.x - 2, a.y + 1), ImVec2(b.x - 2, b.y), kShadow);
+        const ImVec2 a(pillL, rp.y + 2.0f), b(pillR, rp.y + rowH - 2.0f);
+        if (sel)
+            dl->AddRectFilled(a, b, kcAccent, 7.0f);
+        else if (hovered)
+            dl->AddRectFilled(a, b, kcHoverPill, 7.0f);
 
-        const ImVec2 tp(tx + (tw - ts.x) * 0.5f, y + (kTabH - ts.y) * 0.5f + (sel ? -1 : 0));
-        dl->AddText(tp, sel ? kTextCol : kTextDimCol, tabs[i]);
-        tx += tw + 2.0f;
+        SectionIcon(dl, ImVec2(x + 26.0f, rp.y + rowH * 0.5f), 20.0f, i);
+
+        const ImVec2 ts = ImGui::CalcTextSize(kNames[i]);
+        dl->AddText(ImVec2(x + 44.0f, rp.y + (rowH - ts.y) * 0.5f),
+                    sel ? kcWhite : kcText, kNames[i]);
     }
 }
 
@@ -582,29 +742,32 @@ void SettingsPanel::BuildUi() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("##root", nullptr, flags);
     ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float W = vp->Size.x, H = vp->Size.y;
 
-    DrawTitleBar(vp->Size.x);
+    // Sidebar (full height, drawn first).
+    DrawSidebar(o.x, o.y, kSidebarW, H);
 
-    // geometry --------------------------------------------------------------
-    const float top = kTitleH + kMargin;
-    const float btnX = o.x + vp->Size.x - kMargin - kBtnColW;
-    const float pageX = o.x + kMargin;
-    const float pageR = btnX - kMargin;
-    const float tabsY = o.y + top;
-    const float pageY = tabsY + kTabH;
-    const float pageB = o.y + vp->Size.y - kStatusH - kMargin;
+    // Title strip (traffic lights + centered title).
+    DrawTitleBar(W);
 
-    // raised tab-page panel
-    dl->AddRectFilled(ImVec2(pageX, pageY), ImVec2(pageR, pageB), kFaceLite);
-    Bevel(dl, ImVec2(pageX, pageY), ImVec2(pageR, pageB), true);
+    // --- Content region ----------------------------------------------------
+    static const char* kTitles[7] = {"Library", "Display",  "Performance", "Audio",
+                                     "System",  "Color",    "Schedule"};
+    const float cx = o.x + kSidebarW + kPad;
+    const float cRight = o.x + W - kPad;
 
-    // tabs (drawn after the page so the selected tab covers the page's top edge)
-    DrawTabRow(pageX, tabsY, pageR - pageX);
+    // Big section title.
+    ImFont* hf = static_cast<ImFont*>(headerFont_);
+    const float titleY = o.y + kTitleH + 14.0f;
+    if (hf) dl->AddText(hf, 23.0f, ImVec2(cx, titleY), kcText, kTitles[activeTab_]);
+    else dl->AddText(ImVec2(cx, titleY), kcText, kTitles[activeTab_]);
 
-    // page content (transparent ImGui child inside the raised panel)
-    ImGui::SetCursorScreenPos(ImVec2(pageX + 12, pageY + 12));
+    // Page body (transparent scroll child).
+    const float bodyTop = titleY + 42.0f;
+    const float bodyBot = o.y + H - 62.0f;
+    ImGui::SetCursorScreenPos(ImVec2(cx, bodyTop));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::BeginChild("##page", ImVec2(pageR - pageX - 24, pageB - pageY - 24), false);
+    ImGui::BeginChild("##page", ImVec2(cRight - cx, bodyBot - bodyTop), false);
     switch (activeTab_) {
         case 0: TabLibrary(); break;
         case 1: TabDisplay(); break;
@@ -618,67 +781,60 @@ void SettingsPanel::BuildUi() {
     ImGui::EndChild();
     ImGui::PopStyleVar();
 
-    // right button column (Apply commits every tab's edits; browsing lives in
-    // the Library tab now) -------------------------------------------------
-    float by = tabsY;
-    ImGui::SetCursorScreenPos(ImVec2(btnX, by));
-    if (XpButton(dirty_ ? "Apply *" : "Apply", kBtnColW, 26)) CommitSettings();
-    by += 32;
-    ImGui::SetCursorScreenPos(ImVec2(btnX, by));
-    if (XpButton("Close", kBtnColW, 26)) HideToTray();
+    // Footer: status text (left) + Close / Apply (right).
+    const float footY = o.y + H - 46.0f;
+    dl->AddLine(ImVec2(o.x + kSidebarW, footY - 12.0f),
+                ImVec2(o.x + W, footY - 12.0f), kcSep);
 
-    // the RW logo as the dialog's "magnifier" mascot
-    if (logoSrv_ != nullptr) {
-        const float ls = 56.0f;
-        const float lx = btnX + (kBtnColW - ls) * 0.5f;
-        const float ly = pageB - ls - 6.0f;
-        dl->AddImage(reinterpret_cast<ImTextureID>(logoSrv_), ImVec2(lx, ly),
-                     ImVec2(lx + ls, ly + ls));
-    }
+    std::string status = ui_.videoPath.empty()
+                             ? std::string("No wallpaper set")
+                             : ("Playing  " +
+                                Narrow(std::filesystem::path(ui_.videoPath)
+                                           .filename().wstring()));
+    if (status.size() > 64) status = status.substr(0, 61) + "...";
+    dl->AddText(ImVec2(cx, footY + (kBtnH - 15.0f) * 0.5f), kcText2, status.c_str());
 
-    // status bar (sunken) ---------------------------------------------------
-    {
-        const ImVec2 sp(o.x, o.y + vp->Size.y - kStatusH);
-        const ImVec2 sq(o.x + vp->Size.x, o.y + vp->Size.y);
-        dl->AddRectFilled(sp, sq, kFace);
-        dl->AddLine(sp, ImVec2(sq.x, sp.y), kShadow);
-        dl->AddLine(ImVec2(sp.x, sp.y + 1), ImVec2(sq.x, sp.y + 1), kHilite);
-        std::string status = ui_.videoPath.empty()
-                                 ? std::string("Ready")
-                                 : ("Playing:  " + Narrow(ui_.videoPath));
-        if (status.size() > 96) status = status.substr(0, 93) + "...";
-        dl->AddText(ImVec2(sp.x + 10, sp.y + 4), kTextCol, status.c_str());
-    }
-
-    // window frame
-    dl->AddRect(o, ImVec2(o.x + vp->Size.x, o.y + vp->Size.y), kDkShadow);
+    const float applyX = cRight - kBtnW;
+    const float closeX = applyX - 10.0f - kBtnW;
+    ImGui::SetCursorScreenPos(ImVec2(closeX, footY));
+    if (MacButton("Close", kBtnW, kBtnH)) HideToTray();
+    ImGui::SetCursorScreenPos(ImVec2(applyX, footY));
+    if (MacButton(dirty_ ? "Apply \xE2\x80\xA2" : "Apply", kBtnW, kBtnH, true))
+        CommitSettings();
 
     ImGui::End();
     ImGui::PopStyleVar();
 }
 
 // ---------------------------------------------------------------------------
+// Small helper: a secondary-gray group subheader.
+// ---------------------------------------------------------------------------
+namespace {
+void Subhead(const char* text) {
+    ImGui::Dummy(ImVec2(0, 2));
+    ImGui::PushStyleColor(ImGuiCol_Text, kSubheadV);
+    ImGui::TextUnformatted(text);
+    ImGui::PopStyleColor();
+    ImGui::Spacing();
+}
+}  // namespace
+
+// ---------------------------------------------------------------------------
 // Tab pages
 // ---------------------------------------------------------------------------
 void SettingsPanel::TabLibrary() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Library");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // Folder chooser row ----------------------------------------------------
-    if (XpButton("Select Folder...", 150, 26)) {
+    // Folder chooser row.
+    if (MacButton("Select Folder...", 150, 30)) {
         PickLibraryFolder();
     }
     ImGui::SameLine();
-    if (XpButton("Single File...", 130, 26)) {
+    if (MacButton("Single File...", 130, 30)) {
         BrowseForVideo();
     }
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
     if (libraryFolder_.empty()) {
-        ImGui::TextDisabled("(no folder selected)");
+        ImGui::TextDisabled("No folder selected");
     } else {
         ImGui::TextDisabled("%s  \xC2\xB7  %d item%s", Narrow(libraryFolder_).c_str(),
                             static_cast<int>(libraryFiles_.size()),
@@ -686,11 +842,15 @@ void SettingsPanel::TabLibrary() {
     }
     ImGui::Spacing();
 
-    // Split: file list (left) | preview panel (right) -----------------------
+    // Split: file list (left) | preview panel (right).
     const float listW = 300.0f;
     const float rowH = ImGui::GetContentRegionAvail().y;
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, kCardV);
     ImGui::BeginChild("##filelist", ImVec2(listW, rowH), true);
+    ImGui::PopStyleColor();
     if (libraryFiles_.empty()) {
+        ImGui::Spacing();
         ImGui::TextDisabled("Pick a folder to scan for");
         ImGui::TextDisabled("video wallpapers.");
     } else {
@@ -708,17 +868,13 @@ void SettingsPanel::TabLibrary() {
 
     ImGui::BeginChild("##preview", ImVec2(0, rowH), false);
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-        ImGui::TextUnformatted("Preview");
-        ImGui::PopStyleColor();
-        ImGui::Spacing();
+        Subhead("Preview");
 
-        // 16:9 preview surface (sunken) showing the video's thumbnail.
+        // 16:9 preview surface (rounded well) showing the video's thumbnail.
         const ImVec2 p = ImGui::GetCursorScreenPos();
         const float w = 320.0f, h = 180.0f;
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), kFieldBg);
-        Bevel(dl, p, ImVec2(p.x + w, p.y + h), false);
+        Card(dl, p, ImVec2(p.x + w, p.y + h), kcField, 8.0f);
         if (thumbSrv_ != nullptr && thumbW_ > 0 && thumbH_ > 0) {
             // Fit the thumbnail into the box, preserving aspect (letterbox).
             const float scale = (std::min)((w - 4) / thumbW_, (h - 4) / thumbH_);
@@ -727,10 +883,10 @@ void SettingsPanel::TabLibrary() {
             dl->AddImage(reinterpret_cast<ImTextureID>(thumbSrv_), a,
                          ImVec2(a.x + iw, a.y + ih));
         } else if (ui_.videoPath.empty()) {
-            dl->AddText(ImVec2(p.x + 12, p.y + 12), kTextDimCol,
+            dl->AddText(ImVec2(p.x + 14, p.y + 14), kcText2,
                         "No wallpaper selected");
         } else {
-            dl->AddText(ImVec2(p.x + 12, p.y + 12), kTextDimCol,
+            dl->AddText(ImVec2(p.x + 14, p.y + 14), kcText2,
                         "No thumbnail available");
         }
         ImGui::Dummy(ImVec2(w, h));
@@ -742,27 +898,23 @@ void SettingsPanel::TabLibrary() {
             ImGui::TextUnformatted("Selected file:  (none)");
         } else {
             ImGui::PushStyleColor(ImGuiCol_Text,
-                                  pending ? kHeaderBlue : kTextV);
+                                  pending ? kAccentHiV : kTextV);
             ImGui::TextUnformatted(pending ? "Selected  \xC2\xB7  press Apply to set"
                                            : "Active wallpaper");
             ImGui::PopStyleColor();
         }
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 340);
+        ImGui::PushStyleColor(ImGuiCol_Text, kText2V);
         ImGui::TextWrapped("%s", ui_.videoPath.empty()
                                      ? "(none selected)"
                                      : Narrow(ui_.videoPath).c_str());
+        ImGui::PopStyleColor();
         ImGui::PopTextWrapPos();
     }
     ImGui::EndChild();
 }
 
 void SettingsPanel::TabDisplay() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Display & Multi-Monitor");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-
     const int monitors = ::GetSystemMetrics(SM_CMONITORS);
     const std::string preview =
         ui_.monitorIndex == 0 ? "All / Primary"
@@ -801,12 +953,6 @@ void SettingsPanel::TabDisplay() {
 }
 
 void SettingsPanel::TabPerformance() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Performance Rules");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-
     int fpsIdx = ui_.targetFps <= 15 ? 0 : (ui_.targetFps <= 30 ? 1 : 2);
     ImGui::SetNextItemWidth(200);
     if (ImGui::Combo("Target FPS", &fpsIdx, "15\0" "30\0" "60\0\0")) {
@@ -814,32 +960,25 @@ void SettingsPanel::TabPerformance() {
         dirty_ = true;
     }
 
-    ImGui::Spacing();
-    ImGui::TextUnformatted("Pause rules");
+    Subhead("Pause rules");
     bool changed = false;
-    changed |= ImGui::Checkbox("Pause on maximized window", &ui_.pauseOnMaximized);
-    changed |= ImGui::Checkbox("Pause on fullscreen app", &ui_.pauseOnFullscreen);
-    changed |= ImGui::Checkbox("Pause when an app is focused", &ui_.pauseOnFocused);
-    changed |= ImGui::Checkbox("Pause on battery / saver", &ui_.pauseOnBattery);
+    changed |= MacToggle("Pause on maximized window", &ui_.pauseOnMaximized);
+    changed |= MacToggle("Pause on fullscreen app", &ui_.pauseOnFullscreen);
+    changed |= MacToggle("Pause when an app is focused", &ui_.pauseOnFocused);
+    changed |= MacToggle("Pause on battery / saver", &ui_.pauseOnBattery);
     if (changed) dirty_ = true;
 }
 
 void SettingsPanel::TabAudio() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Audio & Playback");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-
     ImGui::SetNextItemWidth(260);
     if (ImGui::SliderFloat("Master Volume", &ui_.volume, 0.0f, 1.0f, "%.2f")) {
         dirty_ = true;
     }
-    if (ImGui::Checkbox("Smart Mute (mute when another app plays audio)",
-                        &ui_.smartMute)) {
+    if (MacToggle("Smart Mute (mute when another app plays audio)",
+                  &ui_.smartMute)) {
         dirty_ = true;
     }
-    if (ImGui::Checkbox("Mute", &ui_.muted)) {
+    if (MacToggle("Mute", &ui_.muted)) {
         dirty_ = true;
     }
     ImGui::SetNextItemWidth(260);
@@ -851,26 +990,18 @@ void SettingsPanel::TabAudio() {
 }
 
 void SettingsPanel::TabSystem() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("System");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-    if (ImGui::Checkbox("Start with Windows", &ui_.startWithWindows)) {
+    if (MacToggle("Start with Windows", &ui_.startWithWindows)) {
         dirty_ = true;
     }
-    if (ImGui::Checkbox("Memory eviction while idle", &ui_.memoryEviction)) {
+    if (MacToggle("Memory eviction while idle", &ui_.memoryEviction)) {
         dirty_ = true;
     }
 
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::Spacing();
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Privacy");
-    ImGui::PopStyleColor();
-    if (ImGui::Checkbox("Black out wallpaper while a screen recorder runs",
-                        &ui_.blackoutOnCapture)) {
+    Subhead("Privacy");
+    if (MacToggle("Black out wallpaper while a screen recorder runs",
+                  &ui_.blackoutOnCapture)) {
         dirty_ = true;
     }
     ImGui::TextDisabled("Renders solid black when OBS / Bandicam / Camtasia is detected.");
@@ -879,12 +1010,6 @@ void SettingsPanel::TabSystem() {
 }
 
 void SettingsPanel::TabColor() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Color & Post-Processing");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-
     ImGui::SetNextItemWidth(260);
     if (ImGui::SliderFloat("Brightness", &ui_.brightness, 0.5f, 1.5f, "%.2f")) dirty_ = true;
     ImGui::SetNextItemWidth(260);
@@ -907,14 +1032,15 @@ void SettingsPanel::TabColor() {
     }
 
     ImGui::Spacing();
-    if (ImGui::Checkbox("Match Windows light/dark theme", &ui_.matchSystemTheme)) {
+    if (MacToggle("Match Windows light/dark theme", &ui_.matchSystemTheme)) {
         dirty_ = true;
     }
     ImGui::TextDisabled("Auto-nudges temperature/brightness to the system theme.");
 
     ImGui::Spacing();
     ImGui::Separator();
-    if (XpButton("Neutral", 120, 26)) {   // reset the grade to identity (not a 'defaults' reset)
+    ImGui::Spacing();
+    if (MacButton("Neutral", 120, 30)) {   // reset the grade to identity
         ui_.brightness = ui_.contrast = ui_.gamma = 1.0f;
         ui_.saturation = 1.0f;
         ui_.tintR = ui_.tintG = ui_.tintB = 1.0f;
@@ -922,19 +1048,14 @@ void SettingsPanel::TabColor() {
         dirty_ = true;
     }
     ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
     ImGui::TextDisabled("Reset color grade to neutral. Changes apply on Apply.");
 }
 
 void SettingsPanel::TabSchedule() {
-    ImGui::PushStyleColor(ImGuiCol_Text, kHeaderBlue);
-    ImGui::TextUnformatted("Scheduling & Rotation");
-    ImGui::PopStyleColor();
-    ImGui::Separator();
-    ImGui::Spacing();
-
     // --- Playlist rotation -------------------------------------------------
-    ImGui::TextUnformatted("Playlist Rotation");
-    if (ImGui::Checkbox("Auto-cycle a folder of wallpapers", &ui_.rotationEnabled)) {
+    Subhead("Playlist Rotation");
+    if (MacToggle("Auto-cycle a folder of wallpapers", &ui_.rotationEnabled)) {
         dirty_ = true;
     }
 
@@ -950,7 +1071,7 @@ void SettingsPanel::TabSchedule() {
         ui_.rotationIntervalMinutes = kIntervals[ivIdx];
         dirty_ = true;
     }
-    if (XpButton("Rotation Folder...", 170, 24)) {
+    if (MacButton("Rotation Folder...", 170, 28)) {
         if (PickFolder(ui_.rotationFolder)) dirty_ = true;
     }
     ImGui::SameLine();
@@ -961,10 +1082,9 @@ void SettingsPanel::TabSchedule() {
 
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::Spacing();
 
     // --- Day / Night -------------------------------------------------------
-    ImGui::TextUnformatted("Day / Night Schedule");
+    Subhead("Day / Night Schedule");
     ImGui::SetNextItemWidth(220);
     if (ImGui::Combo("Mode", &ui_.scheduleMode,
                      "Off\0Fixed local times\0Sunrise / sunset\0")) {
@@ -972,7 +1092,7 @@ void SettingsPanel::TabSchedule() {
     }
 
     if (ui_.scheduleMode != 0) {
-        if (XpButton("Day clip...", 130, 24)) {
+        if (MacButton("Day clip...", 130, 28)) {
             if (PickVideoFile(ui_.dayVideoPath)) dirty_ = true;
         }
         ImGui::SameLine();
@@ -981,7 +1101,7 @@ void SettingsPanel::TabSchedule() {
                                       ? "(none)"
                                       : Narrow(std::filesystem::path(ui_.dayVideoPath)
                                                    .filename().wstring()).c_str());
-        if (XpButton("Night clip...", 130, 24)) {
+        if (MacButton("Night clip...", 130, 28)) {
             if (PickVideoFile(ui_.nightVideoPath)) dirty_ = true;
         }
         ImGui::SameLine();
@@ -1262,16 +1382,17 @@ LRESULT SettingsPanel::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
         case WM_NCHITTEST: {
             POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
             ::ScreenToClient(hwnd, &pt);
-            RECT rc{};
-            ::GetClientRect(hwnd, &rc);
             if (pt.y >= 0 && pt.y < static_cast<int>(kTitleH)) {
-                const CapButtons cb = TitleButtonRects(static_cast<float>(rc.right));
-                auto inside = [&](const ImVec4& r) {
-                    return pt.x >= r.x && pt.x < r.z && pt.y >= r.y && pt.y < r.w;
-                };
-                if (inside(cb.minb) || inside(cb.closeb)) {
-                    return HTCLIENT;
+                // Drag anywhere on the title strip except over the traffic lights.
+                const TrafficLights tl = TrafficLightRects();
+                for (int i = 0; i < 3; ++i) {
+                    const float dx = pt.x - tl.c[i].x, dy = pt.y - tl.c[i].y;
+                    if (dx * dx + dy * dy <= (tl.r + 2) * (tl.r + 2)) {
+                        return HTCLIENT;
+                    }
                 }
+                // The sidebar's top-left under the lights should still allow
+                // dragging; the rest of the strip is caption.
                 return HTCAPTION;
             }
             return HTCLIENT;
