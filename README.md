@@ -18,6 +18,16 @@
 [![Stars](https://img.shields.io/github/stars/NOXxM/RetroWall?style=flat-square&color=facc15)](https://github.com/NOXxM/RetroWall/stargazers)
 [![Issues](https://img.shields.io/github/issues/NOXxM/RetroWall?style=flat-square)](https://github.com/NOXxM/RetroWall/issues)
 
+<br>
+
+<a href="https://github.com/NOXxM/RetroWall/releases/latest/download/RetroWallSetup.exe">
+  <img src="https://img.shields.io/badge/%E2%AC%87%20Download%20for%20Windows-Installer%20(.exe)-22c55e?style=for-the-badge&logo=windows&logoColor=white" alt="Download RetroWall for Windows" height="48" />
+</a>
+
+<sub>One click · no account · free forever · ~2 MB installer</sub>
+
+<br><br>
+
 [**⬇️ Download**](#-download--quick-setup-60-seconds) · [**✨ Features**](#-why-retrowall) · [**📊 Benchmarks**](#-performance--resource-benchmarks) · [**🛠️ Build**](#️-building-from-source-developers) · [**🗺️ Roadmap**](#️-roadmap)
 
 </div>
@@ -77,8 +87,8 @@ RetroWall is architected to be **event-driven**: it only spends cycles when the 
 
 ### 1️⃣ Get the installer
 
-1. Go to the [**Releases**](https://github.com/NOXxM/RetroWall/releases/latest) page.
-2. Under **Assets**, download **`RetroWallSetup.exe`**.
+- **⚡ Direct download:** **[RetroWallSetup.exe](https://github.com/NOXxM/RetroWall/releases/latest/download/RetroWallSetup.exe)** (always the latest version)
+- Or browse the [**Releases**](https://github.com/NOXxM/RetroWall/releases/latest) page and grab **`RetroWallSetup.exe`** under **Assets**.
 
 ### 2️⃣ Install it (pick any folder)
 
