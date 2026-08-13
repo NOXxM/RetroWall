@@ -1,0 +1,9 @@
+// app.rc.in — configured by CMake (@LWE_ASSETS@ -> absolute assets dir).
+#define IDI_APPICON  101
+#define IDR_LOGO_PNG 201
+
+// The first icon (lowest id) becomes the .exe icon shown in Explorer.
+IDI_APPICON  ICON    "@LWE_ASSETS@/app.ico"
+
+// Transparent RW logo, embedded so the running exe needs no external files.
+IDR_LOGO_PNG RCDATA  "@LWE_ASSETS@/logo_64.png"
