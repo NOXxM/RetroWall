@@ -73,6 +73,8 @@ public:
     [[nodiscard]] bool  PauseOnFocused() const noexcept { return aPauseFocus_.load(std::memory_order_relaxed); }
     [[nodiscard]] bool  PauseOnBattery() const noexcept { return aPauseBatt_.load(std::memory_order_relaxed); }
     [[nodiscard]] int   Aspect() const noexcept { return aAspect_.load(std::memory_order_relaxed); }
+    [[nodiscard]] int   Layout() const noexcept { return aLayout_.load(std::memory_order_relaxed); }
+    [[nodiscard]] int   MonitorIndex() const noexcept { return aMonitor_.load(std::memory_order_relaxed); }
     // Color / post-processing (render thread reads these lock-free each frame).
     [[nodiscard]] float Brightness() const noexcept { return aBrightness_.load(std::memory_order_relaxed); }
     [[nodiscard]] float Contrast() const noexcept { return aContrast_.load(std::memory_order_relaxed); }
@@ -140,6 +142,8 @@ private:
     std::atomic<bool>  aPauseFocus_{false};
     std::atomic<bool>  aPauseBatt_{true};
     std::atomic<int>   aAspect_{0};  // 0 Fill, 1 Fit, 2 Stretch
+    std::atomic<int>   aLayout_{0};  // 0 Per-Monitor, 1 Stretch, 2 Clone
+    std::atomic<int>   aMonitor_{0}; // 0 all/primary, N specific monitor
     std::atomic<float> aBrightness_{1.0f};
     std::atomic<float> aContrast_{1.0f};
     std::atomic<float> aSaturation_{1.0f};

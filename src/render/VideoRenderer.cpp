@@ -275,11 +275,11 @@ void VideoRenderer::CreatePipeline() {
 
 // Resolve the aspect mode against the video + surface size and upload the full
 // color/aspect constant buffer. Called from PresentFrame (dims are known there).
-void VideoRenderer::UploadPostCb(UINT frameW, UINT frameH) {
+void VideoRenderer::UploadPostCb(UINT frameW, UINT frameH, float surfW, float surfH) {
     if (!postCb_) return;
     float sx = 1.0f, sy = 1.0f, ox = 0.0f, oy = 0.0f, letterbox = 0.0f;
-    if (frameW > 0 && frameH > 0 && width_ > 0 && height_ > 0) {
-        const float surfAR = static_cast<float>(width_) / static_cast<float>(height_);
+    if (frameW > 0 && frameH > 0 && surfW > 0 && surfH > 0) {
+        const float surfAR = surfW / surfH;
         const float vidAR = static_cast<float>(frameW) / static_cast<float>(frameH);
         if (post_.aspectMode == 0) {          // Fill / cover (crop overflow)
             if (vidAR > surfAR) { sx = surfAR / vidAR; ox = (1.0f - sx) * 0.5f; }
@@ -368,12 +368,6 @@ void VideoRenderer::PresentFrame(ID3D11Texture2D* nv12, UINT subresource,
                                                   rtv.GetAddressOf()),
                   "CreateRenderTargetView(backbuffer)");
 
-    D3D11_VIEWPORT vp{};
-    vp.Width = static_cast<float>(width_);
-    vp.Height = static_cast<float>(height_);
-    vp.MaxDepth = 1.0f;
-    context_->RSSetViewports(1, &vp);
-
     ID3D11RenderTargetView* rtvs[] = {rtv.Get()};
     context_->OMSetRenderTargets(1, rtvs, nullptr);
 
@@ -386,11 +380,38 @@ void VideoRenderer::PresentFrame(ID3D11Texture2D* nv12, UINT subresource,
     context_->PSSetShaderResources(0, 2, srvs);
     ID3D11SamplerState* samplers[] = {sampler_.Get()};
     context_->PSSetSamplers(0, 1, samplers);
-    UploadPostCb(frameW, frameH);  // resolve aspect vs this frame + surface
     ID3D11Buffer* cbs[] = {postCb_.Get()};
     context_->PSSetConstantBuffers(0, 1, cbs);  // b0: color-grade + aspect params
 
-    context_->Draw(3, 0);
+    // Per-monitor layout (Per-Monitor / Clone): draw the clip once into each
+    // monitor's sub-rect, aspect-fitted to that monitor. Stretch (or a single
+    // monitor) uses one spanning draw across the whole surface.
+    const bool perMonitor = (layoutMode_ != 1) && monitorRects_.size() > 1;
+    if (perMonitor) {
+        const float black[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        context_->ClearRenderTargetView(rtv.Get(), black);  // fill any gaps
+        for (const MonitorRect& m : monitorRects_) {
+            D3D11_VIEWPORT vp{};
+            vp.TopLeftX = static_cast<float>(m.x);
+            vp.TopLeftY = static_cast<float>(m.y);
+            vp.Width = static_cast<float>(m.w);
+            vp.Height = static_cast<float>(m.h);
+            vp.MaxDepth = 1.0f;
+            context_->RSSetViewports(1, &vp);
+            UploadPostCb(frameW, frameH, static_cast<float>(m.w),
+                         static_cast<float>(m.h));
+            context_->Draw(3, 0);
+        }
+    } else {
+        D3D11_VIEWPORT vp{};
+        vp.Width = static_cast<float>(width_);
+        vp.Height = static_cast<float>(height_);
+        vp.MaxDepth = 1.0f;
+        context_->RSSetViewports(1, &vp);
+        UploadPostCb(frameW, frameH, static_cast<float>(width_),
+                     static_cast<float>(height_));
+        context_->Draw(3, 0);
+    }
 
     // Unbind SRVs so the intermediate can be a copy dest again next frame
     // without a read/write-hazard warning.

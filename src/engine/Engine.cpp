@@ -803,6 +803,8 @@ void Engine::RenderThreadMain() {
         bool sysDark = false;
         int captureCounter = 0;   // throttle the screen-capture process poll
         bool captureActive = false;
+        int lastLayout = -1;      // recompute monitor layout when these change
+        int lastMonitor = -2;
         LONGLONG lastPresentedMedia = -1;
 
         for (;;) {
@@ -926,6 +928,30 @@ void Engine::RenderThreadMain() {
                              (f.timeStamp - lastPresentedMedia >= minDelta);
             if (!due) {
                 continue;
+            }
+
+            // Update the multi-monitor layout when the mode or target changes.
+            const int curLayout = config_.Layout();
+            const int curMonitor = config_.MonitorIndex();
+            if (curLayout != lastLayout || curMonitor != lastMonitor) {
+                lastLayout = curLayout;
+                lastMonitor = curMonitor;
+                std::vector<render::VideoRenderer::MonitorRect> rects;
+                if (curMonitor == 0 && curLayout != 1 /*not Stretch*/) {
+                    std::vector<RECT> mons;
+                    ::EnumDisplayMonitors(nullptr, nullptr, &CollectMonitorRects,
+                                          reinterpret_cast<LPARAM>(&mons));
+                    if (mons.size() > 1) {
+                        const int vx = ::GetSystemMetrics(SM_XVIRTUALSCREEN);
+                        const int vy = ::GetSystemMetrics(SM_YVIRTUALSCREEN);
+                        for (const RECT& m : mons) {
+                            rects.push_back(render::VideoRenderer::MonitorRect{
+                                m.left - vx, m.top - vy, m.right - m.left,
+                                m.bottom - m.top});
+                        }
+                    }
+                }
+                renderer.SetMonitorLayout(curLayout, std::move(rects));
             }
 
             // Push the live color-grade params to the shader before presenting.

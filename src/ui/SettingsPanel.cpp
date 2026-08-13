@@ -790,15 +790,14 @@ void SettingsPanel::TabDisplay() {
     }
     ImGui::TextDisabled("Fill = cover/crop  \xC2\xB7  Fit = letterbox  \xC2\xB7  Stretch = distort");
 
-    // Layout Mode is a multi-monitor rendering feature that isn't wired to the
-    // render path yet — shown disabled so it doesn't look broken.
     ImGui::Spacing();
     int layout = static_cast<int>(ui_.layout);
-    ImGui::BeginDisabled();
     ImGui::SetNextItemWidth(260);
-    ImGui::Combo("Layout Mode", &layout, "Per-Monitor\0Stretch\0Clone\0\0");
-    ImGui::EndDisabled();
-    ImGui::TextDisabled("Multi-monitor layout — coming soon.");
+    if (ImGui::Combo("Layout Mode", &layout, "Per-Monitor\0Stretch\0Clone\0\0")) {
+        ui_.layout = static_cast<config::LayoutMode>(layout);
+        dirty_ = true;
+    }
+    ImGui::TextDisabled("Stretch spans all displays; Per-Monitor / Clone repeat the clip on each.");
 }
 
 void SettingsPanel::TabPerformance() {

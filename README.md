@@ -216,7 +216,7 @@ build\Release\RetroWall.exe path\to\clip.mp4 # start with a clip
 ## 🗺️ Roadmap
 
 - [ ] 🔊 Audio playback + volume/mute pipeline (settings already persist the hooks)
-- [ ] 📐 Live per-monitor **layout** (Per-Monitor / Stretch / Clone) & **aspect** (Fill / Fit / Stretch)
+- [x] 📐 Live **aspect** (Fill / Fit / Stretch) & multi-monitor **layout** (Per-Monitor / Stretch / Clone)
 - [ ] 🖼️ In-panel **live decoded preview** thumbnails
 - [ ] 🎛️ Save & share **color-grade presets**
 - [ ] 🌐 Community wallpaper gallery / import

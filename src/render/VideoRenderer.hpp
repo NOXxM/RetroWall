@@ -22,6 +22,7 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <vector>
 
 #include "win32/Error.hpp"
 
@@ -56,6 +57,15 @@ public:
     // Aspect is resolved against the frame + surface size inside PresentFrame.
     void SetPostParams(const PostParams& params) { post_ = params; }
 
+    // A monitor's rectangle within the (spanning) surface, in surface pixels.
+    struct MonitorRect { int x = 0, y = 0, w = 0, h = 0; };
+    // Multi-monitor layout: mode 1 (Stretch) or <2 rects => one spanning draw;
+    // otherwise the clip is drawn once per rect (Per-Monitor / Clone).
+    void SetMonitorLayout(int layoutMode, std::vector<MonitorRect> rects) {
+        layoutMode_ = layoutMode;
+        monitorRects_ = std::move(rects);
+    }
+
     // Shared with Media Foundation's IMFDXGIDeviceManager.
     [[nodiscard]] ID3D11Device* Device() const noexcept { return device_.Get(); }
 
@@ -76,7 +86,7 @@ private:
     void CreateDeviceAndSwapChain();
     void CreatePipeline();                 // shaders + sampler
     void EnsureNV12Intermediate(UINT w, UINT h);  // lazy, once per size
-    void UploadPostCb(UINT frameW, UINT frameH);  // color + aspect -> b0
+    void UploadPostCb(UINT frameW, UINT frameH, float surfW, float surfH);  // -> b0
 
     HWND target_ = nullptr;
 
@@ -92,6 +102,8 @@ private:
     ComPtr<ID3D11SamplerState> sampler_;
     ComPtr<ID3D11Buffer> postCb_;  // b0: color-grade + aspect constants
     PostParams post_;              // latest params (uploaded in PresentFrame)
+    int layoutMode_ = 1;           // 0 Per-Monitor, 1 Stretch, 2 Clone
+    std::vector<MonitorRect> monitorRects_;  // surface-relative, when spanning
 
     // App-owned, shader-readable NV12 texture. Decoder output textures are not
     // reliably shader-readable, so each frame is GPU->GPU copied here (no CPU
