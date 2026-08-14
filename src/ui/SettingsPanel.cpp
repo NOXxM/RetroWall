@@ -29,6 +29,18 @@
 #ifndef DWMWCP_ROUND
 #define DWMWCP_ROUND 2
 #endif
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMSBT_TRANSIENTWINDOW
+#define DWMSBT_TRANSIENTWINDOW 3  // acrylic (blur-behind)
+#endif
+#ifndef WS_EX_NOREDIRECTIONBITMAP
+#define WS_EX_NOREDIRECTIONBITMAP 0x00200000L
+#endif
 
 // Provided by imgui_impl_win32.cpp.
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg,
@@ -50,22 +62,26 @@ constexpr float kPad = 28.0f;       // content padding
 constexpr float kBtnW = 96.0f;
 constexpr float kBtnH = 30.0f;
 
-// --- macOS dark-appearance palette (draw-list ImU32) ------------------------
-constexpr ImU32 kcWin = IM_COL32(30, 30, 32, 255);       // content background
-constexpr ImU32 kcSidebar = IM_COL32(44, 44, 48, 255);   // source list
-constexpr ImU32 kcCard = IM_COL32(48, 48, 52, 255);      // grouped card / list
-constexpr ImU32 kcField = IM_COL32(20, 20, 22, 255);     // sunken preview well
-constexpr ImU32 kcControl = IM_COL32(66, 66, 71, 255);   // secondary button
-constexpr ImU32 kcControlHi = IM_COL32(82, 82, 88, 255); // secondary hover
-constexpr ImU32 kcControlDn = IM_COL32(54, 54, 59, 255); // secondary pressed
-constexpr ImU32 kcSep = IM_COL32(255, 255, 255, 20);     // hairline separator
-constexpr ImU32 kcText = IM_COL32(236, 236, 238, 255);
-constexpr ImU32 kcText2 = IM_COL32(152, 152, 158, 255);  // secondary label
-constexpr ImU32 kcAccent = IM_COL32(10, 132, 255, 255);  // systemBlue (dark)
-constexpr ImU32 kcAccentHi = IM_COL32(52, 158, 255, 255);
-constexpr ImU32 kcAccentDn = IM_COL32(0, 106, 214, 255);
-constexpr ImU32 kcToggleOff = IM_COL32(84, 84, 90, 255);
-constexpr ImU32 kcHoverPill = IM_COL32(255, 255, 255, 18);
+// --- Frosted-glass palette (draw-list ImU32) --------------------------------
+// Fills are translucent so the Win11 acrylic backdrop (the blurred wallpaper)
+// shows through. The accent is a signature violet -> the app's own identity.
+constexpr ImU32 kcWin = IM_COL32(16, 17, 24, 0);          // (unused; bg is glass)
+constexpr ImU32 kcSidebar = IM_COL32(14, 15, 24, 58);     // frosted source list
+constexpr ImU32 kcCard = IM_COL32(146, 152, 178, 30);     // glass card / list
+constexpr ImU32 kcField = IM_COL32(8, 9, 14, 140);        // sunken preview well
+constexpr ImU32 kcControl = IM_COL32(255, 255, 255, 28);  // secondary button (frost)
+constexpr ImU32 kcControlHi = IM_COL32(255, 255, 255, 46);// secondary hover
+constexpr ImU32 kcControlDn = IM_COL32(255, 255, 255, 18);// secondary pressed
+constexpr ImU32 kcSep = IM_COL32(255, 255, 255, 30);      // hairline separator
+constexpr ImU32 kcGlassEdge = IM_COL32(255, 255, 255, 46);// top highlight on glass
+constexpr ImU32 kcText = IM_COL32(240, 241, 245, 255);
+constexpr ImU32 kcText2 = IM_COL32(176, 178, 190, 255);   // secondary label
+constexpr ImU32 kcAccent = IM_COL32(129, 101, 255, 255);  // signature violet
+constexpr ImU32 kcAccentHi = IM_COL32(154, 130, 255, 255);
+constexpr ImU32 kcAccentDn = IM_COL32(108, 82, 226, 255);
+constexpr ImU32 kcAccentGlow = IM_COL32(129, 101, 255, 90);
+constexpr ImU32 kcToggleOff = IM_COL32(255, 255, 255, 40);
+constexpr ImU32 kcHoverPill = IM_COL32(255, 255, 255, 22);
 constexpr ImU32 kcWhite = IM_COL32(255, 255, 255, 255);
 
 // Traffic lights.
@@ -75,17 +91,17 @@ constexpr ImU32 kcTLGreen = IM_COL32(39, 201, 63, 255);
 constexpr ImU32 kcTLGlyph = IM_COL32(0, 0, 0, 110);
 
 // --- ImVec4 mirror for the ImGui widget style -------------------------------
-constexpr ImVec4 kWinV = {0.118f, 0.118f, 0.125f, 1.0f};
-constexpr ImVec4 kCardV = {0.188f, 0.188f, 0.204f, 1.0f};
-constexpr ImVec4 kFieldV = {0.078f, 0.078f, 0.086f, 1.0f};
-constexpr ImVec4 kControlV = {0.259f, 0.259f, 0.278f, 1.0f};
-constexpr ImVec4 kControlHiV = {0.322f, 0.322f, 0.345f, 1.0f};
-constexpr ImVec4 kTextV = {0.925f, 0.925f, 0.933f, 1.0f};
-constexpr ImVec4 kText2V = {0.596f, 0.596f, 0.620f, 1.0f};
-constexpr ImVec4 kAccentV = {0.039f, 0.518f, 1.0f, 1.0f};
-constexpr ImVec4 kAccentHiV = {0.204f, 0.620f, 1.0f, 1.0f};
-constexpr ImVec4 kSepV = {1.0f, 1.0f, 1.0f, 0.078f};
-constexpr ImVec4 kSubheadV = {0.596f, 0.596f, 0.620f, 1.0f};  // group subheaders
+constexpr ImVec4 kWinV = {0.0f, 0.0f, 0.0f, 0.0f};            // transparent (glass)
+constexpr ImVec4 kCardV = {0.57f, 0.60f, 0.70f, 0.12f};       // glass card
+constexpr ImVec4 kFieldV = {0.03f, 0.035f, 0.055f, 0.55f};    // sunken well
+constexpr ImVec4 kControlV = {1.0f, 1.0f, 1.0f, 0.11f};       // frost control
+constexpr ImVec4 kControlHiV = {1.0f, 1.0f, 1.0f, 0.18f};
+constexpr ImVec4 kTextV = {0.941f, 0.945f, 0.961f, 1.0f};
+constexpr ImVec4 kText2V = {0.69f, 0.70f, 0.745f, 1.0f};
+constexpr ImVec4 kAccentV = {0.506f, 0.396f, 1.0f, 1.0f};     // signature violet
+constexpr ImVec4 kAccentHiV = {0.604f, 0.51f, 1.0f, 1.0f};
+constexpr ImVec4 kSepV = {1.0f, 1.0f, 1.0f, 0.12f};
+constexpr ImVec4 kSubheadV = {0.69f, 0.70f, 0.745f, 1.0f};    // group subheaders
 
 // Three round window buttons, top-left (client coords). [0]=close [1]=min [2]=zoom.
 struct TrafficLights {
@@ -115,11 +131,36 @@ std::string Narrow(const std::wstring& w) {
     return s;
 }
 
-// A rounded, filled surface with an optional hairline border (macOS card).
+// --- Blur-behind glass (SetWindowCompositionAttribute) ----------------------
+// Unlike DWMSBT acrylic (whose dark tint is fixed and heavy), this lets us pick
+// the tint alpha, so the window can be genuinely see-through with a Gaussian
+// blur. The API is undocumented, so it's resolved dynamically.
+void EnableBlurBehind(HWND hwnd, unsigned tintAABBGGRR) {
+    struct ACCENTPOLICY { int state; int flags; unsigned gradient; int anim; };
+    struct WINCOMPATTR { int attrib; void* data; size_t size; };
+    using SetWCA_t = BOOL(WINAPI*)(HWND, WINCOMPATTR*);
+    HMODULE user32 = ::GetModuleHandleW(L"user32.dll");
+    if (user32 == nullptr) return;
+    auto setWCA = reinterpret_cast<SetWCA_t>(
+        ::GetProcAddress(user32, "SetWindowCompositionAttribute"));
+    if (setWCA == nullptr) return;
+    // state 4 = ACCENT_ENABLE_ACRYLICBLURBEHIND (blur + our tint alpha).
+    ACCENTPOLICY policy{4, 0, tintAABBGGRR, 0};
+    WINCOMPATTR data{19 /*WCA_ACCENT_POLICY*/, &policy, sizeof(policy)};
+    setWCA(hwnd, &data);
+}
+
+// A rounded, frosted-glass surface: translucent fill, hairline border, and a
+// soft top-edge highlight so light appears to catch the glass.
 void Card(ImDrawList* dl, const ImVec2& a, const ImVec2& b, ImU32 fill,
           float rounding, bool border = true) {
     dl->AddRectFilled(a, b, fill, rounding);
-    if (border) dl->AddRect(a, b, kcSep, rounding, 0, 1.0f);
+    if (border) {
+        // Bright hairline along the top curve = the lit glass edge.
+        dl->AddLine(ImVec2(a.x + rounding, a.y + 0.5f),
+                    ImVec2(b.x - rounding, a.y + 0.5f), kcGlassEdge, 1.0f);
+        dl->AddRect(a, b, kcSep, rounding, 0, 1.0f);
+    }
 }
 
 // The colored rounded-square icon tile + a simple white glyph, macOS-style.
@@ -317,6 +358,9 @@ void SettingsPanel::ShutdownGraphics() {
         ImGui::DestroyContext();
     }
     CleanupRenderTarget();
+    if (dcompVisual_) { dcompVisual_->Release(); dcompVisual_ = nullptr; }
+    if (dcompTarget_) { dcompTarget_->Release(); dcompTarget_ = nullptr; }
+    if (dcompDevice_) { dcompDevice_->Release(); dcompDevice_ = nullptr; }
     if (swapChain_) { swapChain_->Release(); swapChain_ = nullptr; }
     if (context_) { context_->Release(); context_ = nullptr; }
     if (device_) { device_->Release(); device_ = nullptr; }
@@ -350,46 +394,85 @@ bool SettingsPanel::CreatePanelWindow() {
     const int x = (::GetSystemMetrics(SM_CXSCREEN) - w) / 2;
     const int y = (::GetSystemMetrics(SM_CYSCREEN) - h) / 2;
 
-    hwnd_ = ::CreateWindowExW(WS_EX_APPWINDOW, MAKEINTATOM(wndClass_),
+    // WS_EX_NOREDIRECTIONBITMAP: no opaque GDI redirection surface, so the
+    // DirectComposition swapchain's per-pixel alpha reaches the compositor and
+    // the acrylic backdrop can show through.
+    hwnd_ = ::CreateWindowExW(WS_EX_APPWINDOW | WS_EX_NOREDIRECTIONBITMAP,
+                             MAKEINTATOM(wndClass_),
                              L"RetroWall \x2014 Settings", style, x, y, w, h,
                              nullptr, nullptr, instance_, this);
     if (hwnd_ == nullptr) return false;
 
-    // Modern rounded corners + a soft border (Windows 11; ignored on Win10).
+    // Dark titlebar hint + rounded corners + a soft border (Windows 11).
+    BOOL dark = TRUE;
+    ::DwmSetWindowAttribute(hwnd_, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
     DWORD corner = DWMWCP_ROUND;
     ::DwmSetWindowAttribute(hwnd_, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
                             sizeof(corner));
-    COLORREF border = RGB(64, 64, 70);
+    COLORREF border = RGB(84, 84, 96);
     ::DwmSetWindowAttribute(hwnd_, DWMWA_BORDER_COLOR, &border, sizeof(border));
+    // See-through blur: a light, self-chosen tint (alpha ~0x2A) over a Gaussian
+    // blur of whatever is behind the window. Much more transparent than the
+    // fixed dark DWMSBT acrylic. Tint is 0xAABBGGRR (a faint cool slate).
+    EnableBlurBehind(hwnd_, 0x2A241E1C);
     return true;
 }
 
 bool SettingsPanel::CreateDeviceAndSwapChain() {
-    DXGI_SWAP_CHAIN_DESC sd{};
-    sd.BufferCount = 2;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = hwnd_;
-    sd.SampleDesc.Count = 1;
-    sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-
-    UINT flags = 0;
+    UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;  // required for composition
 #ifndef NDEBUG
     flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
-    const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0,
-                                        D3D_FEATURE_LEVEL_10_0};
+    const D3D_FEATURE_LEVEL levels[] = {
+        D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL obtained{};
-    HRESULT hr = ::D3D11CreateDeviceAndSwapChain(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags, levels, 2,
-        D3D11_SDK_VERSION, &sd, &swapChain_, &device_, &obtained, &context_);
+    HRESULT hr = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+                                     flags, levels, ARRAYSIZE(levels),
+                                     D3D11_SDK_VERSION, &device_, &obtained,
+                                     &context_);
     if (hr == DXGI_ERROR_UNSUPPORTED) {
-        hr = ::D3D11CreateDeviceAndSwapChain(
-            nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags, levels, 2,
-            D3D11_SDK_VERSION, &sd, &swapChain_, &device_, &obtained, &context_);
+        hr = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags,
+                                 levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
+                                 &device_, &obtained, &context_);
     }
     if (FAILED(hr)) return false;
+
+    IDXGIDevice* dxgiDevice = nullptr;
+    if (FAILED(device_->QueryInterface(IID_PPV_ARGS(&dxgiDevice)))) return false;
+    IDXGIAdapter* adapter = nullptr;
+    if (FAILED(dxgiDevice->GetAdapter(&adapter))) { dxgiDevice->Release(); return false; }
+    IDXGIFactory2* factory = nullptr;
+    const HRESULT fhr = adapter->GetParent(IID_PPV_ARGS(&factory));
+    adapter->Release();
+    if (FAILED(fhr)) { dxgiDevice->Release(); return false; }
+
+    RECT rc{};
+    ::GetClientRect(hwnd_, &rc);
+    DXGI_SWAP_CHAIN_DESC1 sd{};
+    sd.Width = static_cast<UINT>(rc.right - rc.left);
+    sd.Height = static_cast<UINT>(rc.bottom - rc.top);
+    sd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    sd.SampleDesc.Count = 1;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.BufferCount = 2;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    sd.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;  // per-pixel alpha for glass
+    sd.Scaling = DXGI_SCALING_STRETCH;
+    hr = factory->CreateSwapChainForComposition(device_, &sd, nullptr, &swapChain_);
+    factory->Release();
+    if (FAILED(hr)) { dxgiDevice->Release(); return false; }
+
+    // Bind the swapchain as the window's composed content via DirectComposition.
+    hr = ::DCompositionCreateDevice(dxgiDevice, IID_PPV_ARGS(&dcompDevice_));
+    dxgiDevice->Release();
+    if (FAILED(hr)) return false;
+    if (FAILED(dcompDevice_->CreateTargetForHwnd(hwnd_, TRUE, &dcompTarget_)))
+        return false;
+    if (FAILED(dcompDevice_->CreateVisual(&dcompVisual_))) return false;
+    dcompVisual_->SetContent(swapChain_);
+    dcompTarget_->SetRoot(dcompVisual_);
+    dcompDevice_->Commit();
 
     CreateRenderTarget();
     return true;
@@ -512,7 +595,10 @@ void SettingsPanel::RenderFrame() {
     BuildUi();
 
     ImGui::Render();
-    const float clear[4] = {0.118f, 0.118f, 0.125f, 1.0f};  // content background
+    // Transparent clear: everything the UI doesn't paint (or paints with alpha)
+    // reveals the acrylic backdrop. ImGui's blend over a premultiplied target
+    // composites correctly, so no halos.
+    const float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     context_->OMSetRenderTargets(1, &rtv_, nullptr);
     context_->ClearRenderTargetView(rtv_, clear);
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
@@ -589,7 +675,14 @@ bool SettingsPanel::MacButton(const char* label, float w, float h, bool primary)
         fill = held ? kcAccentDn : (hovered ? kcAccentHi : kcAccent);
     else
         fill = held ? kcControlDn : (hovered ? kcControlHi : kcControl);
+    if (primary) {  // soft violet halo under the primary action
+        dl->AddRectFilled(ImVec2(p.x - 1.5f, p.y - 1.0f),
+                          ImVec2(q.x + 1.5f, q.y + 3.0f), kcAccentGlow, 9.0f);
+    }
     dl->AddRectFilled(p, q, fill, 7.0f);
+    // Lit top edge (light catching the glass / button).
+    dl->AddLine(ImVec2(p.x + 6, p.y + 0.5f), ImVec2(q.x - 6, p.y + 0.5f),
+                primary ? IM_COL32(255, 255, 255, 66) : kcGlassEdge, 1.0f);
     if (!primary) dl->AddRect(p, q, kcSep, 7.0f, 0, 1.0f);
 
     const ImVec2 ts = ImGui::CalcTextSize(label);
@@ -714,10 +807,16 @@ void SettingsPanel::DrawSidebar(float x, float y, float w, float h) {
         const bool hovered = ImGui::IsItemHovered();
 
         const ImVec2 a(pillL, rp.y + 2.0f), b(pillR, rp.y + rowH - 2.0f);
-        if (sel)
+        if (sel) {
+            // Soft violet glow + solid pill + lit top edge.
+            dl->AddRectFilled(ImVec2(a.x - 2.0f, a.y - 1.5f),
+                              ImVec2(b.x + 2.0f, b.y + 2.5f), kcAccentGlow, 10.0f);
             dl->AddRectFilled(a, b, kcAccent, 7.0f);
-        else if (hovered)
+            dl->AddLine(ImVec2(a.x + 7, a.y + 0.5f), ImVec2(b.x - 7, a.y + 0.5f),
+                        IM_COL32(255, 255, 255, 64), 1.0f);
+        } else if (hovered) {
             dl->AddRectFilled(a, b, kcHoverPill, 7.0f);
+        }
 
         SectionIcon(dl, ImVec2(x + 26.0f, rp.y + rowH * 0.5f), 20.0f, i);
 
@@ -745,6 +844,13 @@ void SettingsPanel::BuildUi() {
     ImGui::Begin("##root", nullptr, flags);
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float W = vp->Size.x, H = vp->Size.y;
+
+    // Base glass tint: barely-there, so the acrylic blur dominates and the panel
+    // reads as clear frosted glass. Just a faint bottom-weighted darkening to
+    // anchor the footer text.
+    dl->AddRectFilledMultiColor(o, ImVec2(o.x + W, o.y + H),
+                                IM_COL32(12, 14, 22, 8), IM_COL32(12, 14, 22, 8),
+                                IM_COL32(6, 7, 12, 34), IM_COL32(6, 7, 12, 34));
 
     // Sidebar (full height, drawn first).
     DrawSidebar(o.x, o.y, kSidebarW, H);

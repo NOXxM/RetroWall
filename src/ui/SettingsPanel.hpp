@@ -15,6 +15,8 @@
 #include <windows.h>
 
 #include <d3d11.h>
+#include <dcomp.h>
+#include <dxgi1_2.h>
 
 #include <atomic>
 #include <string>
@@ -91,8 +93,13 @@ private:
     HWND                    hwnd_ = nullptr;
     ID3D11Device*           device_ = nullptr;
     ID3D11DeviceContext*    context_ = nullptr;
-    IDXGISwapChain*         swapChain_ = nullptr;
+    IDXGISwapChain1*        swapChain_ = nullptr;
     ID3D11RenderTargetView* rtv_ = nullptr;
+    // DirectComposition: lets the swapchain carry per-pixel alpha so the Win11
+    // acrylic backdrop (blurred wallpaper) shows through the frosted-glass UI.
+    IDCompositionDevice*    dcompDevice_ = nullptr;
+    IDCompositionTarget*    dcompTarget_ = nullptr;
+    IDCompositionVisual*    dcompVisual_ = nullptr;
     UINT                    resizeW_ = 0;
     UINT                    resizeH_ = 0;
     bool                    swapChainOccluded_ = false;
