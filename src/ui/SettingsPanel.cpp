@@ -85,10 +85,10 @@ constexpr ImU32 kcHoverPill = IM_COL32(255, 255, 255, 22);
 constexpr ImU32 kcWhite = IM_COL32(255, 255, 255, 255);
 
 // Traffic lights.
-constexpr ImU32 kcTLRed = IM_COL32(255, 95, 86, 255);
-constexpr ImU32 kcTLYellow = IM_COL32(255, 189, 46, 255);
-constexpr ImU32 kcTLGreen = IM_COL32(39, 201, 63, 255);
-constexpr ImU32 kcTLGlyph = IM_COL32(0, 0, 0, 110);
+constexpr ImU32 kcBtnHover = IM_COL32(255, 255, 255, 30);   // min hover
+constexpr ImU32 kcBtnDown = IM_COL32(255, 255, 255, 18);    // min pressed
+constexpr ImU32 kcCloseHover = IM_COL32(232, 17, 35, 255);  // close hover (Win red)
+constexpr ImU32 kcCloseDown = IM_COL32(241, 112, 122, 255); // close pressed
 
 // --- ImVec4 mirror for the ImGui widget style -------------------------------
 constexpr ImVec4 kWinV = {0.0f, 0.0f, 0.0f, 0.0f};            // transparent (glass)
@@ -103,21 +103,18 @@ constexpr ImVec4 kAccentHiV = {0.604f, 0.51f, 1.0f, 1.0f};
 constexpr ImVec4 kSepV = {1.0f, 1.0f, 1.0f, 0.12f};
 constexpr ImVec4 kSubheadV = {0.69f, 0.70f, 0.745f, 1.0f};    // group subheaders
 
-// Three round window buttons, top-left (client coords). [0]=close [1]=min [2]=zoom.
-struct TrafficLights {
-    ImVec2 c[3];
-    float r;
+// Windows-style caption buttons, top-right (client coords): minimize + close.
+struct CaptionButtons {
+    ImVec4 minb;    // (l,t,r,b)
+    ImVec4 closeb;
 };
 
-TrafficLights TrafficLightRects() {
-    TrafficLights t;
-    t.r = 6.5f;
-    const float y = kTitleH * 0.5f;
-    const float x0 = 21.0f, gap = 20.0f;
-    t.c[0] = ImVec2(x0, y);
-    t.c[1] = ImVec2(x0 + gap, y);
-    t.c[2] = ImVec2(x0 + 2 * gap, y);
-    return t;
+CaptionButtons CaptionButtonRects(float clientW) {
+    const float bw = 46.0f, bh = kTitleH;
+    CaptionButtons c;
+    c.closeb = ImVec4(clientW - bw, 0.0f, clientW, bh);
+    c.minb = ImVec4(clientW - 2.0f * bw, 0.0f, clientW - bw, bh);
+    return c;
 }
 
 std::string Narrow(const std::wstring& w) {
@@ -735,36 +732,32 @@ void SettingsPanel::DrawTitleBar(float width) {
     if (tf) dl->AddText(tf, fh, tp, kcText2, title);
     else dl->AddText(tp, kcText2, title);
 
-    // Traffic lights.
-    const TrafficLights tl = TrafficLightRects();
-    const ImU32 fills[3] = {kcTLRed, kcTLYellow, kcTLGreen};
-    for (int i = 0; i < 3; ++i) {
-        const ImVec2 c(o.x + tl.c[i].x, o.y + tl.c[i].y);
-        ImGui::SetCursorScreenPos(ImVec2(c.x - tl.r, c.y - tl.r));
-        char id[8];
-        id[0] = '#'; id[1] = '#'; id[2] = 't'; id[3] = 'l';
-        id[4] = static_cast<char>('0' + i); id[5] = '\0';
-        const bool clicked = ImGui::InvisibleButton(id, ImVec2(tl.r * 2, tl.r * 2));
+    // Windows-style caption buttons (minimize + close) at the top-right.
+    const CaptionButtons cb = CaptionButtonRects(width);
+    auto drawBtn = [&](const ImVec4& r, const char* id, bool isClose) -> bool {
+        const ImVec2 a(o.x + r.x, o.y + r.y);
+        const ImVec2 b(o.x + r.z, o.y + r.w);
+        ImGui::SetCursorScreenPos(a);
+        const bool clicked = ImGui::InvisibleButton(id, ImVec2(r.z - r.x, r.w - r.y));
         const bool hovered = ImGui::IsItemHovered();
-        dl->AddCircleFilled(c, tl.r, fills[i], 16);
-        if (hovered) {  // reveal the glyph on hover, like macOS
-            if (i == 0) {  // close: ×
-                dl->AddLine(ImVec2(c.x - 2.6f, c.y - 2.6f),
-                            ImVec2(c.x + 2.6f, c.y + 2.6f), kcTLGlyph, 1.3f);
-                dl->AddLine(ImVec2(c.x - 2.6f, c.y + 2.6f),
-                            ImVec2(c.x + 2.6f, c.y - 2.6f), kcTLGlyph, 1.3f);
-            } else if (i == 1) {  // minimize: −
-                dl->AddLine(ImVec2(c.x - 3.0f, c.y), ImVec2(c.x + 3.0f, c.y),
-                            kcTLGlyph, 1.4f);
-            } else {  // zoom: + (inert)
-                dl->AddLine(ImVec2(c.x - 2.6f, c.y), ImVec2(c.x + 2.6f, c.y),
-                            kcTLGlyph, 1.4f);
-                dl->AddLine(ImVec2(c.x, c.y - 2.6f), ImVec2(c.x, c.y + 2.6f),
-                            kcTLGlyph, 1.4f);
-            }
+        const bool held = ImGui::IsItemActive();
+        if (hovered) {
+            const ImU32 fill = isClose ? (held ? kcCloseDown : kcCloseHover)
+                                       : (held ? kcBtnDown : kcBtnHover);
+            dl->AddRectFilled(a, b, fill);
         }
-        if (clicked && i != 2) HideToTray();  // red/yellow hide; green is inert
-    }
+        const ImU32 g = (isClose && hovered) ? kcWhite : kcText;
+        const float cx = (a.x + b.x) * 0.5f, cy = (a.y + b.y) * 0.5f;
+        if (isClose) {  // close: ×
+            dl->AddLine(ImVec2(cx - 5, cy - 5), ImVec2(cx + 5, cy + 5), g, 1.2f);
+            dl->AddLine(ImVec2(cx - 5, cy + 5), ImVec2(cx + 5, cy - 5), g, 1.2f);
+        } else {  // minimize: −
+            dl->AddLine(ImVec2(cx - 5, cy), ImVec2(cx + 5, cy), g, 1.2f);
+        }
+        return clicked;
+    };
+    if (drawBtn(cb.minb, "##min", false)) HideToTray();
+    if (drawBtn(cb.closeb, "##close", true)) HideToTray();
 }
 
 // ---------------------------------------------------------------------------
@@ -1495,17 +1488,16 @@ LRESULT SettingsPanel::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
         case WM_NCHITTEST: {
             POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
             ::ScreenToClient(hwnd, &pt);
+            RECT rc{};
+            ::GetClientRect(hwnd, &rc);
             if (pt.y >= 0 && pt.y < static_cast<int>(kTitleH)) {
-                // Drag anywhere on the title strip except over the traffic lights.
-                const TrafficLights tl = TrafficLightRects();
-                for (int i = 0; i < 3; ++i) {
-                    const float dx = pt.x - tl.c[i].x, dy = pt.y - tl.c[i].y;
-                    if (dx * dx + dy * dy <= (tl.r + 2) * (tl.r + 2)) {
-                        return HTCLIENT;
-                    }
-                }
-                // The sidebar's top-left under the lights should still allow
-                // dragging; the rest of the strip is caption.
+                // Let ImGui handle the caption buttons; drag the rest of the strip.
+                const CaptionButtons cb =
+                    CaptionButtonRects(static_cast<float>(rc.right));
+                auto inside = [&](const ImVec4& r) {
+                    return pt.x >= r.x && pt.x < r.z && pt.y >= r.y && pt.y < r.w;
+                };
+                if (inside(cb.minb) || inside(cb.closeb)) return HTCLIENT;
                 return HTCAPTION;
             }
             return HTCLIENT;
