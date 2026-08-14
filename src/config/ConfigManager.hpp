@@ -29,6 +29,7 @@ namespace lwe::config {
 enum class ConfigField {
     All,
     VideoPath,
+    LibraryFolder,
     Monitor,
     Layout,
     Aspect,
@@ -89,6 +90,7 @@ public:
 
     // --- Typed setters (GUI thread) ---
     void SetVideoPath(std::wstring value);
+    void SetLibraryFolder(std::wstring value);
     void SetMonitorIndex(int value);
     void SetLayout(LayoutMode value);
     void SetAspect(AspectMode value);

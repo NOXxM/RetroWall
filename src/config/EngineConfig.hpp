@@ -24,6 +24,7 @@ enum class AspectMode {
 struct EngineConfig {
     // --- Library ---
     std::wstring videoPath;
+    std::wstring libraryFolder;  // last folder browsed in the Library tab (sticky)
 
     // --- Display & multi-monitor ---
     int        monitorIndex = 0;  // 0 == primary / all (per LayoutMode)

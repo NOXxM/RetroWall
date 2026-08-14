@@ -4,7 +4,7 @@
 ; Build:  ISCC.exe RetroWall.iss     (output lands next to this script)
 
 #define MyAppName "RetroWall"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "RetroWall"
 #define MyAppExeName "RetroWall.exe"
 

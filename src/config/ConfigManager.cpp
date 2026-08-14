@@ -141,6 +141,7 @@ void ConfigManager::ReadFromIni() {
     if (!path.empty()) {
         c.videoPath = path;
     }
+    { const std::wstring f = ReadStr(kSecLibrary, L"Folder", p); if (!f.empty()) c.libraryFolder = f; }
 
     c.monitorIndex = ReadInt(kSecDisplay, L"MonitorIndex", c.monitorIndex, p);
     c.layout = static_cast<LayoutMode>(
@@ -204,6 +205,7 @@ bool ConfigManager::Save() {
     const std::wstring& p = iniPath_;
 
     WriteStr(kSecLibrary, L"VideoPath", c.videoPath, p);
+    WriteStr(kSecLibrary, L"Folder", c.libraryFolder, p);
 
     WriteInt(kSecDisplay, L"MonitorIndex", c.monitorIndex, p);
     WriteInt(kSecDisplay, L"Layout", static_cast<int>(c.layout), p);
@@ -319,6 +321,10 @@ void ConfigManager::Notify(ConfigField field, const EngineConfig& snapshot) {
 void ConfigManager::SetVideoPath(std::wstring value) {
     Mutate(ConfigField::VideoPath,
            [&](EngineConfig& c) { c.videoPath = std::move(value); });
+}
+void ConfigManager::SetLibraryFolder(std::wstring value) {
+    Mutate(ConfigField::LibraryFolder,
+           [&](EngineConfig& c) { c.libraryFolder = std::move(value); });
 }
 void ConfigManager::SetMonitorIndex(int value) {
     Mutate(ConfigField::Monitor, [&](EngineConfig& c) { c.monitorIndex = value; });

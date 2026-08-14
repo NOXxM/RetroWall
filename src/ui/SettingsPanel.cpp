@@ -253,6 +253,8 @@ void SettingsPanel::ThreadMain() {
             ui_ = config_.Snapshot();
             dirty_ = false;
             LoadThumbnail(ui_.videoPath);  // preview the currently-active clip
+            libraryFolder_ = ui_.libraryFolder;  // restore the last-browsed folder
+            ScanLibraryFolder();                 // repopulate the file list
             visible_.store(true);
         }
 
@@ -1234,6 +1236,11 @@ bool SettingsPanel::PickVideoFile(std::wstring& out) {
 void SettingsPanel::PickLibraryFolder() {
     if (PickFolder(libraryFolder_)) {
         ScanLibraryFolder();
+        // The browsed folder is a convenience, not a staged edit: persist it
+        // right away so it's remembered across restarts even without Apply.
+        ui_.libraryFolder = libraryFolder_;
+        config_.SetLibraryFolder(libraryFolder_);
+        config_.Save();
     }
 }
 
