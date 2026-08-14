@@ -38,15 +38,15 @@
 
 ### 🖼️ See it in action
 
-<img src="docs/preview-1.png" alt="RetroWall playing a knight-in-a-flower-field video wallpaper, with the macOS-style settings panel open on the Library tab" width="920" />
+<img src="docs/preview-1.gif" alt="Animated preview of RetroWall playing a knight-in-a-flower-field video wallpaper, with the frosted-glass settings panel open on the Library tab" width="920" />
 
 <br><br>
 
-<img src="docs/preview-2.png" alt="RetroWall playing a Frieren star-trails video wallpaper, with the macOS-style settings panel open on the Display tab" width="920" />
+<img src="docs/preview-2.gif" alt="Animated preview of RetroWall playing a Frieren star-trails video wallpaper, with the frosted-glass settings panel open on the Display tab" width="920" />
 
 <br>
 
-<sub>Pick any clip from your library and it plays live behind your desktop icons — driven from a clean, macOS-style control panel.</sub>
+<sub>Pick any clip from your library and it plays live behind your desktop icons — driven from a clean, frosted-glass control panel.</sub>
 
 </div>
 
@@ -54,7 +54,7 @@
 
 ## 🌟 Why RetroWall?
 
-RetroWall does one thing and does it exceptionally well: it plays a **hardware-decoded video behind your desktop icons** and then gets out of your way. No launcher, no account, no background telemetry — just a tiny native app and a clean, macOS-inspired control panel.
+RetroWall does one thing and does it exceptionally well: it plays a **hardware-decoded video behind your desktop icons** and then gets out of your way. No launcher, no account, no background telemetry — just a tiny native app and a clean, frosted-glass control panel.
 
 - 🆓 **100% Free & Open-Source** — No subscriptions, no ads, no "pro" upsells, **no telemetry**. Every line is on GitHub for you to read, audit, and fork.
 - 🧠 **Smart Pause Technology** — Automatically **freezes rendering** when you launch a **fullscreen game**, when a window is **maximized/occluded**, when an app takes **focus**, or when you're on **battery / battery-saver**. When your wallpaper isn't visible, it costs you **nothing**.
@@ -65,7 +65,7 @@ RetroWall does one thing and does it exceptionally well: it plays a **hardware-d
 - 🌗 **Day / Night Scheduling** — Swap wallpapers by **fixed local times** or by real **sunrise/sunset** (astronomical calc from your date + coordinates).
 - 🔒 **Privacy Blackout** — Optionally render a **solid black background** when a screen recorder (OBS / Bandicam / Camtasia) is detected.
 - 🚀 **Seamless Startup** — Optionally launch with Windows and sit quietly in the **system tray**.
-- 🖥️ **macOS-Style UI** — A clean, dark **macOS-inspired** settings panel with a source-list sidebar, traffic-light window controls, colored section icons, and rounded system controls.
+- 🖥️ **Frosted-Glass UI** — A clean, dark **blur-behind** settings panel with a violet accent, a source-list sidebar, colored section icons, pill toggles, and native Windows caption buttons.
 
 > 🔐 **Security & Transparency:** Because RetroWall is fully open-source and makes **no network calls**, there's nothing hidden. Build it yourself or grab a release — either way, what you run is exactly what's in this repo.
 
